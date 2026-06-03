@@ -52,12 +52,12 @@ Ensure `vercel.json` at the **repo root** is committed and pushed (this repo inc
 |---------|--------|
 | Framework Preset | Vite (or Other — `vercel.json` overrides) |
 | Root Directory | **`.`** (repository root, not `apps/web`) |
-| Node.js Version | **20.x** (Project Settings → General) |
+| Node.js Version | **20.x** (must match `"node": "20.x"` in root `package.json` — do not use `>=20`) |
 | Build Command | *(leave empty — uses `vercel.json`)* |
 | Output Directory | *(leave empty — uses `vercel.json`)* |
-| Install Command | **`pnpm install`** or leave empty (Vercel reads `packageManager` in `package.json`) |
+| Install Command | Leave empty (repo `vercel.json` sets `pnpm install --frozen-lockfile`) |
 
-Do **not** set Install Command to `corepack enable` — that often fails on Vercel.
+Do **not** override Install Command to `corepack` or leave a custom command that causes **Skipping install**.
 
 4. **Environment Variables** → add for **Production** (and Preview if you want):
 

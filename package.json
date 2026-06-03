@@ -3,10 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "description": "ArchitectAI — enterprise AI architecture governance platform (monorepo)",
-  "packageManager": "pnpm@9.15.0",
+  "packageManager": "pnpm@10.15.1",
   "engines": {
-    "node": ">=20.0.0",
-    "pnpm": ">=9.0.0"
+    "node": "20.x",
+    "pnpm": "10.15.1"
   },
   "scripts": {
     "build": "turbo run build",
