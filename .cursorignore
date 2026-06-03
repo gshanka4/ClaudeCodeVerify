@@ -1,0 +1,12 @@
+node_modules/
+.pnpm-store/
+.next/
+dist/
+build/
+coverage/
+.turbo/
+.git/
+test-results/
+playwright-report/
+blob-report/
+*.log

@@ -1,0 +1,1355 @@
+openapi: 3.1.0
+info:
+  title: ArchitectAI API
+  version: 1.0.0
+  description: |
+    Enterprise AI Architecture Governance Platform API.
+    
+    Base URL: https://api.architectai.com/api
+    
+    Authentication: Bearer JWT token from Clerk (all routes except /health).
+    The API server sets `app.current_organization_id` and `app.current_user_id`
+    as Postgres session variables for RLS enforcement on every request.
+    
+    Rate limits:
+      - /generate/*: 10 req/min per user
+      - /drift/*: 120 req/min per workspace (Cursor extension)
+      - All other: 300 req/min per user
+
+servers:
+  - url: /api
+    description: Proxied dev server
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ── Pagination ──────────────────────────────────────────────────────────
+    PaginationMeta:
+      type: object
+      properties:
+        total: { type: integer }
+        page: { type: integer }
+        perPage: { type: integer }
+        cursor: { type: string, nullable: true }
+
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, example: "VALIDATION_ERROR" }
+        message: { type: string }
+        details:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+
+    # ── Architecture ────────────────────────────────────────────────────────
+    ArchitectureSummary:
+      type: object
+      required: [id, name, status, confidenceScore, driftScore, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        status:
+          type: string
+          enum: [interrogating, generating, ready, draft, archived]
+        environmentTarget:
+          type: string
+          enum: [aws, gcp, azure, on-prem, multi-cloud]
+        confidenceScore: { type: integer, minimum: 0, maximum: 100 }
+        governanceScore: { type: integer, minimum: 0, maximum: 100 }
+        driftScore: { type: integer, minimum: 0 }
+        tags:
+          type: array
+          items: { type: string }
+        totalServices: { type: integer }
+        openDriftCount: { type: integer }
+        collaborators:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollaboratorSummary'
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        generatedAt: { type: string, format: date-time, nullable: true }
+
+    CollaboratorSummary:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        displayName: { type: string }
+        avatarUrl: { type: string, nullable: true }
+        canEdit: { type: boolean }
+
+    ArchitectureDetail:
+      allOf:
+        - $ref: '#/components/schemas/ArchitectureSummary'
+        - type: object
+          properties:
+            services:
+              type: array
+              items: { $ref: '#/components/schemas/ArchService' }
+            layers:
+              type: array
+              items: { $ref: '#/components/schemas/ArchLayer' }
+            connections:
+              type: array
+              items: { $ref: '#/components/schemas/ServiceConnection' }
+            governanceIssues:
+              type: array
+              items: { $ref: '#/components/schemas/GovernanceIssue' }
+            complianceFlags:
+              type: array
+              items: { type: string }
+
+    ArchService:
+      type: object
+      required: [id, name, displayName, category, layer, confidenceScore, status]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        displayName: { type: string }
+        category: { type: string }
+        layer:
+          type: string
+          enum: [gateway, security, services, cache, messaging, database, ml, storage, observability]
+        confidenceScore: { type: integer, minimum: 0, maximum: 100 }
+        status:
+          type: string
+          enum: [done, active, pending, warning, error]
+        description: { type: string }
+        rationale: { type: string }
+        alternatives:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              reason: { type: string }
+              tradeoffs: { type: string }
+        position:
+          type: object
+          properties:
+            x: { type: number }
+            y: { type: number }
+
+    ArchLayer:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        displayName: { type: string }
+        order: { type: integer }
+        confidenceScore: { type: integer }
+
+    ServiceConnection:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        fromServiceId: { type: string, format: uuid }
+        toServiceId: { type: string, format: uuid }
+        protocol:
+          type: string
+          enum: [REST, gRPC, Kafka, WebSocket, AMQP, internal]
+        authMethod:
+          type: string
+          enum: [mTLS, JWT, API-key, OAuth2-CC, none]
+        isContractDefined: { type: boolean }
+        contractId: { type: string, format: uuid, nullable: true }
+
+    GovernanceIssue:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        ruleCode: { type: string }
+        severity:
+          type: string
+          enum: [critical, high, medium, low, info]
+        message: { type: string }
+        autoFixAvailable: { type: boolean }
+
+    # ── Interrogation ────────────────────────────────────────────────────────
+    InterrogationSession:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [active, complete, abandoned]
+        contextGatheringProgress: { type: integer, minimum: 0, maximum: 100 }
+        governanceCoverageProgress: { type: integer, minimum: 0, maximum: 100 }
+        currentQuestionIndex: { type: integer }
+
+    InterrogationQuestion:
+      type: object
+      required: [id, category, status, questionText, options]
+      properties:
+        id: { type: string, format: uuid }
+        sessionId: { type: string, format: uuid }
+        index: { type: integer }
+        category:
+          type: string
+          enum: [scale, security, compliance, cloud, data, messaging, deployment, migration]
+        status:
+          type: string
+          enum: [pending, answered, skipped]
+        questionText: { type: string }
+        warningContext:
+          nullable: true
+          type: object
+          properties:
+            level:
+              type: string
+              enum: [low, medium, critical]
+            message: { type: string }
+            affectedPaths:
+              type: array
+              items: { type: string }
+        options:
+          type: array
+          minItems: 2
+          maxItems: 4
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              label: { type: string }
+              description: { type: string }
+              badge:
+                type: string
+                nullable: true
+                enum: [AI Recommended, Common Choice, Enterprise Grade, null]
+              badgeVariant:
+                type: string
+                nullable: true
+                enum: [violet, emerald, amber, null]
+              keyboardHint: { type: integer, enum: [1, 2, 3, 4] }
+        selectedOptionId: { type: string, nullable: true }
+        freeformAnswer: { type: string, nullable: true }
+        confidenceImpact: { type: integer, minimum: 0, maximum: 100 }
+        answeredAt: { type: string, format: date-time, nullable: true }
+
+    # ── Drift ────────────────────────────────────────────────────────────────
+    DriftEvent:
+      type: object
+      required: [id, filePath, severity, status, driftScore, ruleCode, whatHappened]
+      properties:
+        id: { type: string, format: uuid }
+        architectureId: { type: string, format: uuid }
+        filePath: { type: string }
+        severity:
+          type: string
+          enum: [critical, high, medium, low]
+        status:
+          type: string
+          enum: [open, ignored, auto-fixed, exception-pending, exception-approved]
+        driftScore: { type: integer }
+        ruleCode: { type: string }
+        ruleName: { type: string }
+        whatHappened: { type: string }
+        agreedContract:
+          type: object
+          properties:
+            steps:
+              type: array
+              items:
+                type: object
+                properties:
+                  from: { type: string }
+                  to: { type: string }
+                  isViolation: { type: boolean }
+            label: { type: string }
+        currentViolation:
+          type: object
+          properties:
+            steps:
+              type: array
+              items:
+                type: object
+                properties:
+                  from: { type: string }
+                  to: { type: string }
+                  isViolation: { type: boolean }
+            label: { type: string }
+        impact:
+          type: array
+          items:
+            type: object
+            properties:
+              type: { type: string }
+              description: { type: string }
+        autoFix:
+          nullable: true
+          type: object
+          properties:
+            filePath: { type: string }
+            linesChanged: { type: integer }
+            driftScoreDelta: { type: integer }
+            hunks:
+              type: array
+              items:
+                type: object
+                properties:
+                  lineStart: { type: integer }
+                  removed:
+                    type: array
+                    items: { type: string }
+                  added:
+                    type: array
+                    items: { type: string }
+        detectedAt: { type: string, format: date-time }
+
+    # ── Verification (spec delta D9 — v3.0) ─────────────────────────────────
+    VerificationTier:
+      type: string
+      enum: [deterministic, probabilistic]
+
+    VerificationVerdict:
+      type: string
+      enum: [verified, unverified, conflict]
+
+    VerificationCheck:
+      type: string
+      enum:
+        - coverage.requirement
+        - coverage.justification
+        - structure.composition
+        - structure.integrity
+        - governance.conformance
+        - constraint.satisfiability
+        - adjudication.crossmodel
+        - pattern.reference
+
+    GroundTruthSource:
+      type: object
+      required: [kind, ref]
+      properties:
+        kind:
+          type: string
+          enum: [requirement, rule, capability-table, reference-corpus, cross-model]
+        ref: { type: string }
+
+    VerificationRun:
+      type: object
+      required: [id, architectureId, version, status, trustGrade, engineVersions, startedAt]
+      properties:
+        id: { type: string, format: uuid }
+        architectureId: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        status:
+          type: string
+          enum: [running, complete, failed]
+        trustGrade: { type: integer, minimum: 0, maximum: 100 }
+        engineVersions:
+          type: object
+          additionalProperties: { type: string }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time, nullable: true }
+
+    VerificationFinding:
+      type: object
+      required: [id, runId, architectureId, check, tier, verdict, confidence, groundTruthSource, detail]
+      properties:
+        id: { type: string, format: uuid }
+        runId: { type: string, format: uuid }
+        architectureId: { type: string, format: uuid }
+        serviceId: { type: string, format: uuid, nullable: true }
+        lineageNodeId: { type: string, format: uuid, nullable: true }
+        check: { $ref: '#/components/schemas/VerificationCheck' }
+        tier: { $ref: '#/components/schemas/VerificationTier' }
+        verdict: { $ref: '#/components/schemas/VerificationVerdict' }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        groundTruthSource: { $ref: '#/components/schemas/GroundTruthSource' }
+        detail: { type: string }
+        evidenceRef: { type: string, nullable: true }
+
+    VerificationOverride:
+      type: object
+      required: [id, findingId, architectureId, userId, reason, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        findingId: { type: string, format: uuid }
+        architectureId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        reason: { type: string, minLength: 10 }
+        createdAt: { type: string, format: date-time }
+
+    TrustGradeDeduction:
+      type: object
+      required: [kind, amount, detail]
+      properties:
+        kind:
+          type: string
+          enum: [deterministic_conflict, unverified_critical, probabilistic_flag, open_drift, override_recorded]
+        amount: { type: integer, minimum: 0 }
+        detail: { type: string }
+        findingId: { type: string, format: uuid, nullable: true }
+
+    TrustGradeBreakdown:
+      type: object
+      required: [score, verificationScore, deductions, overrides]
+      properties:
+        score: { type: integer, minimum: 0, maximum: 100 }
+        verificationScore: { type: integer, minimum: 0, maximum: 100 }
+        driftPenalty: { type: integer, minimum: 0, nullable: true }
+        deductions:
+          type: array
+          items: { $ref: '#/components/schemas/TrustGradeDeduction' }
+        overrides:
+          type: array
+          items:
+            type: object
+            required: [findingId, reason]
+            properties:
+              findingId: { type: string, format: uuid }
+              reason: { type: string }
+
+    VerificationSummary:
+      type: object
+      required: [run, findings, trustGrade, overrides]
+      properties:
+        run: { $ref: '#/components/schemas/VerificationRun' }
+        findings:
+          type: array
+          items: { $ref: '#/components/schemas/VerificationFinding' }
+        trustGrade: { $ref: '#/components/schemas/TrustGradeBreakdown' }
+        overrides:
+          type: array
+          items: { $ref: '#/components/schemas/VerificationOverride' }
+
+    VerificationGateConflict:
+      type: object
+      required: [findingId, check, detail]
+      properties:
+        findingId: { type: string, format: uuid }
+        serviceId: { type: string, format: uuid, nullable: true }
+        check: { $ref: '#/components/schemas/VerificationCheck' }
+        detail: { type: string }
+
+    VerificationGateFailedError:
+      type: object
+      required: [code, message, conflicts]
+      properties:
+        code:
+          type: string
+          enum: [verification_gate_failed]
+        message: { type: string }
+        conflicts:
+          type: array
+          items: { $ref: '#/components/schemas/VerificationGateConflict' }
+          minItems: 1
+
+    StartVerificationResponse:
+      type: object
+      required: [runId, streamUrl]
+      properties:
+        runId: { type: string, format: uuid }
+        streamUrl: { type: string }
+
+    RecordVerificationOverrideRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 10 }
+
+paths:
+  # ── Health ────────────────────────────────────────────────────────────────
+  /healthz:
+    get:
+      tags: [System]
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  uptime: { type: number }
+                  version: { type: string }
+
+  # ── Architectures ─────────────────────────────────────────────────────────
+  /architectures:
+    get:
+      tags: [Architectures]
+      summary: List architectures for the current organization
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [interrogating, generating, ready, draft, archived]
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Fuzzy search on architecture name (pg_trgm)
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: perPage
+          in: query
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        '200':
+          description: Paginated list of architectures
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ArchitectureSummary' }
+                  meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    post:
+      tags: [Architectures]
+      summary: Create a new architecture (draft)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 200 }
+                description: { type: string }
+                environmentTarget:
+                  type: string
+                  enum: [aws, gcp, azure, on-prem, multi-cloud]
+                  default: aws
+                tags:
+                  type: array
+                  items: { type: string }
+      responses:
+        '201':
+          description: Created architecture
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ArchitectureSummary' }
+
+  /architectures/{architectureId}:
+    get:
+      tags: [Architectures]
+      summary: Get full architecture detail
+      parameters:
+        - name: architectureId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Full architecture
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ArchitectureDetail' }
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+    patch:
+      tags: [Architectures]
+      summary: Update architecture metadata
+      parameters:
+        - name: architectureId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+                tags:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ArchitectureSummary' }
+
+    delete:
+      tags: [Architectures]
+      summary: Archive (soft-delete) an architecture
+      parameters:
+        - name: architectureId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Archived successfully
+
+  /architectures/{architectureId}/lock:
+    post:
+      tags: [Architectures]
+      summary: Lock architecture for export (version snapshot; v3 gated on verification)
+      description: |
+        v2.0 — snapshots the current `version` as the export baseline.
+        v3.0 (D9) — returns **409** with `verification_gate_failed` when critical components
+        have unresolved deterministic conflicts without an override.
+      parameters:
+        - name: architectureId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Locked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [version, lockedAt]
+                    properties:
+                      version: { type: integer }
+                      lockedAt: { type: string, format: date-time }
+                      verificationRunId: { type: string, format: uuid }
+        '409':
+          description: Verification gate failed — unresolved deterministic conflicts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { $ref: '#/components/schemas/VerificationGateFailedError' }
+
+  /architectures/{architectureId}/verify:
+    post:
+      tags: [Verification]
+      summary: Trigger a Verification Pass (idempotent per version)
+      parameters:
+        - name: architectureId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: force
+          in: query
+          schema: { type: boolean, default: false }
+          description: Re-run even if a complete run exists for the current version
+      responses:
+        '202':
+          description: Verification run accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/StartVerificationResponse' }
+
+  /architectures/{architectureId}/verification:
+    get:
+      tags: [Verification]
+      summary: Latest verification run, findings, and Trust Grade
+      parameters:
+        - name: architectureId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Verification summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/VerificationSummary' }
+        '404':
+          description: No verification run found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /architectures/{architectureId}/services/{serviceId}/verification:
+    get:
+      tags: [Verification]
+      summary: Per-component verification findings
+      parameters:
+        - name: architectureId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: serviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Component findings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      serviceId: { type: string, format: uuid }
+                      findings:
+                        type: array
+                        items: { $ref: '#/components/schemas/VerificationFinding' }
+
+  /architectures/{architectureId}/findings/{findingId}/override:
+    post:
+      tags: [Verification]
+      summary: Record an override-with-reason for a blocking finding
+      parameters:
+        - name: architectureId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: findingId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecordVerificationOverrideRequest' }
+      responses:
+        '201':
+          description: Override recorded (immutable)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/VerificationOverride' }
+        '403':
+          description: Insufficient role (requires architect or governance_lead)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /architectures/{architectureId}/verification/stream/{runId}:
+    get:
+      tags: [Verification]
+      summary: SSE stream of verification findings (spec delta D9)
+      description: |
+        Events use `verification.*` type prefix: `verification.finding`, `verification.progress`,
+        `verification.complete`, `verification.error`.
+      parameters:
+        - name: architectureId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Server-Sent Events stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  # ── Interrogation ─────────────────────────────────────────────────────────
+  /interrogate/start:
+    post:
+      tags: [Interrogation]
+      summary: Start a new interrogation session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt:
+                  type: string
+                  minLength: 20
+                  description: Raw user input — PRD text, Jira epic, or plain description
+                importType:
+                  type: string
+                  enum: [jira, prd, swagger, text]
+                  default: text
+                importUrl:
+                  type: string
+                  format: uri
+                  nullable: true
+      responses:
+        '201':
+          description: Session created, first question returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      sessionId: { type: string, format: uuid }
+                      session: { $ref: '#/components/schemas/InterrogationSession' }
+                      firstQuestion: { $ref: '#/components/schemas/InterrogationQuestion' }
+
+  /interrogate/{sessionId}:
+    get:
+      tags: [Interrogation]
+      summary: Get interrogation session (resume / autosave)
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Full session with questions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/InterrogationSession'
+
+  /interrogate/{sessionId}/answer:
+    post:
+      tags: [Interrogation]
+      summary: Answer the current question
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [questionId]
+              properties:
+                questionId: { type: string, format: uuid }
+                selectedOptionId: { type: string, nullable: true }
+                freeformAnswer: { type: string, nullable: true }
+      responses:
+        '200':
+          description: Next question or completion signal
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      nextQuestion:
+                        nullable: true
+                        allOf:
+                          - { $ref: '#/components/schemas/InterrogationQuestion' }
+                      sessionProgress:
+                        type: object
+                        properties:
+                          contextGathering: { type: integer }
+                          governanceCoverage: { type: integer }
+                          questionsRemaining: { type: integer }
+                      canGenerate: { type: boolean }
+
+  /interrogate/{sessionId}/skip:
+    post:
+      tags: [Interrogation]
+      summary: Skip the current question
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [questionId]
+              properties:
+                questionId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Next question
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      nextQuestion:
+                        nullable: true
+                        allOf:
+                          - { $ref: '#/components/schemas/InterrogationQuestion' }
+                      confidencePenalty: { type: integer }
+                      canGenerate: { type: boolean }
+
+  /interrogate/{sessionId}/edit/{questionId}:
+    patch:
+      tags: [Interrogation]
+      summary: Edit a previously answered question
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: questionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                selectedOptionId: { type: string, nullable: true }
+                freeformAnswer: { type: string, nullable: true }
+      responses:
+        '200':
+          description: Updated answer, recalculated scores
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      updatedProgress:
+                        type: object
+                        properties:
+                          contextGathering: { type: integer }
+                          governanceCoverage: { type: integer }
+
+  # ── Generation ────────────────────────────────────────────────────────────
+  /generate/start:
+    post:
+      tags: [Generation]
+      summary: Start architecture generation from completed interrogation session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionId]
+              properties:
+                sessionId: { type: string, format: uuid }
+      responses:
+        '202':
+          description: Generation started, SSE stream URL provided
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      architectureId: { type: string, format: uuid }
+                      streamUrl:
+                        type: string
+                        description: Relative SSE URL to subscribe to
+
+  /generate/stream/{architectureId}:
+    get:
+      tags: [Generation]
+      summary: SSE stream for real-time generation events
+      description: |
+        Server-Sent Events stream. Connect with EventSource.
+        
+        Event types emitted:
+        - `node`: A new service node was generated
+        - `governance`: A governance check was applied
+        - `progress`: Overall progress update
+        - `complete`: Generation finished
+        - `error`: Generation failed
+        
+        Each event: `data: <JSON>\n\n`
+      parameters:
+        - name: architectureId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /generate/{architectureId}/cancel:
+    post:
+      tags: [Generation]
+      summary: Cancel an in-progress generation
+      parameters:
+        - name: architectureId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Cancelled, architecture reverted to draft status
+
+  # ── Drift Detection ───────────────────────────────────────────────────────
+  /drift/check:
+    post:
+      tags: [Drift]
+      summary: Check a file for architecture drift
+      description: Called by the Cursor extension on file save. Must respond < 200ms P95.
+      security:
+        - BearerAuth: []   # extension uses a scoped workspace API token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [architectureId, filePath, fileContent]
+              properties:
+                architectureId: { type: string, format: uuid }
+                filePath: { type: string }
+                fileContent: { type: string }
+                diffHunks:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      lineStart: { type: integer }
+                      removed:
+                        type: array
+                        items: { type: string }
+                      added:
+                        type: array
+                        items: { type: string }
+      responses:
+        '200':
+          description: Drift check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      hasDrift: { type: boolean }
+                      drifts:
+                        type: array
+                        items: { $ref: '#/components/schemas/DriftEvent' }
+                      currentDriftScore: { type: integer }
+
+  /drift/{architectureId}:
+    get:
+      tags: [Drift]
+      summary: List all drift events for an architecture
+      parameters:
+        - name: architectureId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, ignored, auto-fixed, exception-pending, exception-approved]
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [critical, high, medium, low]
+      responses:
+        '200':
+          description: Drift events list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/DriftEvent' }
+
+  /drift/{driftId}/apply-fix:
+    post:
+      tags: [Drift]
+      summary: Apply the auto-fix for a drift event
+      parameters:
+        - name: driftId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Fix applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      driftId: { type: string, format: uuid }
+                      status: { type: string, example: auto-fixed }
+                      newDriftScore: { type: integer }
+                      patchedFile: { type: string }
+
+  /drift/{driftId}/ignore:
+    post:
+      tags: [Drift]
+      summary: Ignore a drift event (marks as known, stays in log)
+      parameters:
+        - name: driftId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Marked as ignored
+
+  # ── Exceptions ────────────────────────────────────────────────────────────
+  /exceptions/request:
+    post:
+      tags: [Exceptions]
+      summary: Request a governance exception for a drift event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [driftEventId, reason, businessJustification, targetResolutionDate]
+              properties:
+                driftEventId: { type: string, format: uuid }
+                reason: { type: string, minLength: 20 }
+                businessJustification: { type: string }
+                targetResolutionDate:
+                  type: string
+                  format: date
+      responses:
+        '201':
+          description: Exception request created, governance lead notified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      exceptionId: { type: string, format: uuid }
+                      status: { type: string, example: pending }
+                      reviewerName: { type: string }
+
+  /exceptions/{exceptionId}/review:
+    post:
+      tags: [Exceptions]
+      summary: Approve or deny an exception request (governance_lead role required)
+      parameters:
+        - name: exceptionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [approved, denied]
+                reviewNotes: { type: string }
+                expiresAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+      responses:
+        '200':
+          description: Exception reviewed
+
+  # ── Governance ────────────────────────────────────────────────────────────
+  /governance/rulesets:
+    get:
+      tags: [Governance]
+      summary: List governance rulesets for the organization
+      responses:
+        '200':
+          description: Rulesets list
+    post:
+      tags: [Governance]
+      summary: Create a new ruleset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                description: { type: string }
+                isDefault: { type: boolean }
+      responses:
+        '201':
+          description: Created ruleset
+
+  # ── Exports ───────────────────────────────────────────────────────────────
+  /architectures/{architectureId}/export:
+    post:
+      tags: [Exports]
+      summary: Generate and download an architecture export
+      parameters:
+        - name: architectureId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [format]
+              properties:
+                format:
+                  type: string
+                  enum: [terraform, pulumi, openapi, adr-markdown, cursor-config]
+      responses:
+        '200':
+          description: Export content
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      format: { type: string }
+                      content: { type: string }
+                      filename: { type: string }
+
+  # ── Cursor Workspaces ─────────────────────────────────────────────────────
+  /cursor/workspaces:
+    post:
+      tags: [Cursor]
+      summary: Register a new Cursor workspace connection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [architectureId, workspacePath]
+              properties:
+                architectureId: { type: string, format: uuid }
+                workspacePath: { type: string }
+                monitoredPaths:
+                  type: array
+                  items: { type: string }
+                  default: ["src/"]
+                ignoredPaths:
+                  type: array
+                  items: { type: string }
+                  default: ["node_modules/", "dist/"]
+      responses:
+        '201':
+          description: Workspace registered, config returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      workspaceId: { type: string, format: uuid }
+                      apiToken: { type: string }
+                      cursorConfig: { type: object }
+
+  /cursor/workspaces/{workspaceId}/config:
+    get:
+      tags: [Cursor]
+      summary: Pull CursorConfig for a registered workspace (scoped workspace token)
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: CursorConfig payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      cursorConfig: { type: object }
+
+  # ── Audit ─────────────────────────────────────────────────────────────────
+  /audit:
+    get:
+      tags: [Audit]
+      summary: List audit events (governance_lead and owner only)
+      parameters:
+        - name: resourceType
+          in: query
+          schema: { type: string }
+        - name: resourceId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+      responses:
+        '200':
+          description: Paginated audit events

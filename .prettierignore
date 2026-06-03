@@ -1,0 +1,6 @@
+**/dist/**
+**/node_modules/**
+**/.turbo/**
+**/coverage/**
+pnpm-lock.yaml
+docs/04_ARCHITECTAI_API_SPEC.yaml

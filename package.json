@@ -1,0 +1,42 @@
+{
+  "name": "architectai",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ArchitectAI — enterprise AI architecture governance platform (monorepo)",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "build:production": "bash scripts/build-production.sh",
+    "dev": "turbo run dev",
+    "dev:local": "pnpm --filter @architectai/shared build && pnpm --filter @architectai/config build && pnpm --filter @architectai/api dev:staging & pnpm --filter @architectai/web dev",
+    "dev:staging": "pnpm dev:local",
+    "staging:local": "pnpm staging:infra && pnpm staging:api & pnpm --filter @architectai/web dev",
+    "staging:infra": "pnpm --filter @architectai/shared build && pnpm --filter @architectai/config build && docker compose -f infra/docker-compose.yml up -d && sleep 3 && pnpm --filter @architectai/api migrate",
+    "staging:api": "pnpm --filter @architectai/api dev",
+    "staging:quick": "pnpm --filter @architectai/shared build && pnpm --filter @architectai/config build && pnpm --filter @architectai/api dev:staging & pnpm --filter @architectai/web dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "validate:prod-env": "pnpm --filter @architectai/api validate:prod-env",
+    "validate:production": "bash scripts/validate-production-readiness.sh",
+    "validate:production:env": "bash scripts/validate-production-readiness.sh --env",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs,json,md,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs,json,md,css}\"",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.0",
+    "@commitlint/config-conventional": "^19.6.0",
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.11",
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1"
+  }
+}

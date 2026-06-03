@@ -1,0 +1,42 @@
+{
+  "name": "@architectai/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx watch src/index.ts",
+    "dev:memory": "tsx watch dev/dev-server.ts",
+    "dev:staging": "tsx watch dev/dev-server.ts",
+    "start": "node dist/index.js",
+    "migrate": "tsx src/db/migrate-cli.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src dev",
+    "validate:prod-env": "tsx scripts/validate-prod-env.ts"
+  },
+  "dependencies": {
+    "@architectai/config": "workspace:*",
+    "@architectai/shared": "workspace:*",
+    "@clerk/backend": "^3.4.14",
+    "bullmq": "^5.77.6",
+    "drizzle-orm": "^0.45.2",
+    "express": "^5.0.1",
+    "express-openapi-validator": "^5.6.2",
+    "ioredis": "^5.11.0",
+    "pg": "^8.21.0",
+    "pino": "^9.5.0",
+    "pino-http": "^10.3.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.4.6",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.20.0",
+    "drizzle-kit": "^0.31.10",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

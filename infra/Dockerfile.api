@@ -1,0 +1,26 @@
+# ArchitectAI API — production image (build dist on CI first)
+# From repo root:
+#   pnpm install && pnpm --filter @architectai/shared build && pnpm --filter @architectai/config build && pnpm --filter @architectai/api build
+#   docker build -f infra/Dockerfile.api -t architectai-api .
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV APP_ENV=production
+
+# Copy prebuilt API bundle + workspace packages it resolves at runtime
+COPY apps/api/dist ./dist
+COPY apps/api/package.json ./package.json
+COPY apps/api/src/db/migrations ./dist/db/migrations
+
+# Install production deps only (api package + workspace links resolved via file: copy)
+COPY node_modules ./node_modules
+COPY packages/shared/dist ./node_modules/@architectai/shared/dist
+COPY packages/shared/package.json ./node_modules/@architectai/shared/package.json
+COPY packages/config/dist ./node_modules/@architectai/config/dist
+COPY packages/config/package.json ./node_modules/@architectai/config/package.json
+
+EXPOSE 4000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s \
+  CMD wget -qO- http://127.0.0.1:4000/healthz || exit 1
+CMD ["node", "dist/index.js"]

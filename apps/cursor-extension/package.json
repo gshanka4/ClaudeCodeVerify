@@ -1,0 +1,55 @@
+{
+  "name": "architectai",
+  "version": "0.0.0",
+  "private": true,
+  "displayName": "ArchitectAI",
+  "description": "Governance + drift detection for ArchitectAI, in your IDE.",
+  "publisher": "architectai",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onUri", "onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "architectai.connect",
+        "title": "ArchitectAI: Connect Workspace"
+      },
+      {
+        "command": "architectai.openDrift",
+        "title": "ArchitectAI: Open Drift Panel"
+      },
+      {
+        "command": "architectai.downloadFallback",
+        "title": "ArchitectAI: Download .architectai Fallback Bundle"
+      }
+    ],
+    "configuration": {
+      "title": "ArchitectAI",
+      "properties": {
+        "architectai.debounceMs": {
+          "type": "number",
+          "default": 400,
+          "description": "Debounce window for save-triggered drift checks"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@architectai/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/vscode": "^1.90.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2"
+  }
+}
