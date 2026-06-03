@@ -52,9 +52,12 @@ Ensure `vercel.json` at the **repo root** is committed and pushed (this repo inc
 |---------|--------|
 | Framework Preset | Vite (or Other — `vercel.json` overrides) |
 | Root Directory | **`.`** (repository root, not `apps/web`) |
+| Node.js Version | **20.x** (Project Settings → General) |
 | Build Command | *(leave empty — uses `vercel.json`)* |
 | Output Directory | *(leave empty — uses `vercel.json`)* |
-| Install Command | *(leave empty — uses `vercel.json`)* |
+| Install Command | **`pnpm install`** or leave empty (Vercel reads `packageManager` in `package.json`) |
+
+Do **not** set Install Command to `corepack enable` — that often fails on Vercel.
 
 4. **Environment Variables** → add for **Production** (and Preview if you want):
 
@@ -131,7 +134,8 @@ Vercel → Project → **Settings** → **Domains** → add `app.yourdomain.com`
 
 | Issue | Fix |
 |-------|-----|
-| Build fails `pnpm not found` | Root Directory must be `.`; `vercel.json` uses `corepack` + pnpm |
+| Build fails at `Preparing pnpm@...` / corepack | Clear **Install Command** in Vercel settings; use default `pnpm install`. Redeploy latest `main`. |
+| Build fails `pnpm not found` | Root Directory must be `.`; enable Node 20; `package.json` has `"packageManager": "pnpm@9.15.0"` |
 | Build fails workspace packages | Ensure `vercel.json` is at repo root with full `buildCommand` |
 | Blank page | Check build logs; open browser console for JS errors |
 | Clerk infinite load | Add Vercel Production URL to Clerk allowed origins |
