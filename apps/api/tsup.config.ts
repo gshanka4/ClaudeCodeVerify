@@ -1,7 +1,10 @@
+import { cpSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "tsup";
 
-const srcDir = fileURLToPath(new URL("./src", import.meta.url));
+const rootDir = fileURLToPath(new URL(".", import.meta.url));
+const srcDir = join(rootDir, "src");
 
 export default defineConfig({
   entry: ["src/index.ts"],
@@ -14,5 +17,11 @@ export default defineConfig({
   // Resolve the `@/*` path alias at bundle time (mirrors tsconfig paths).
   esbuildOptions(options) {
     options.alias = { "@": srcDir };
+  },
+  // Bundled entry resolves migrations next to dist/index.js (dist/migrations).
+  async onSuccess() {
+    cpSync(join(rootDir, "src/db/migrations"), join(rootDir, "dist/migrations"), {
+      recursive: true,
+    });
   },
 });
