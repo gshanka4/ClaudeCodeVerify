@@ -2,17 +2,17 @@
 
 **Your setup today**
 
-| Layer | Host | URL |
-|-------|------|-----|
-| **Frontend (done)** | Vercel | `https://claude-code-verify.vercel.app` |
-| **Backend (this guide)** | Render | `https://architectai-api.onrender.com` *(example — yours may differ)* |
-| **Database** | Render Postgres | auto-linked |
-| **Cache** | Render Redis | auto-linked |
+| Layer                    | Host            | URL                                                                   |
+| ------------------------ | --------------- | --------------------------------------------------------------------- |
+| **Frontend (done)**      | Vercel          | `https://claude-code-verify.vercel.app`                               |
+| **Backend (this guide)** | Render          | `https://architectai-api.onrender.com` _(example — yours may differ)_ |
+| **Database**             | Render Postgres | auto-linked                                                           |
+| **Cache**                | Render Redis    | auto-linked                                                           |
 
 **Repo:** [github.com/gshanka4/ClaudeCodeVerify](https://github.com/gshanka4/ClaudeCodeVerify)  
 **Blueprint file:** `render-api.yaml` (API only — does not redeploy your Vercel frontend)
 
-**Demo / low cost (~$0):** use **`render-api-demo.yaml`** instead — see [DEMO_DEPLOYMENT.md](./DEMO_DEPLOYMENT.md) (~$27/mo vs ~$0).
+**15-day demo (~$7, no Redis):** use **`render-api-no-redis.yaml`** — see [DEMO_DEPLOYMENT.md](./DEMO_DEPLOYMENT.md).
 
 **Estimated time:** 1–2 hours
 
@@ -23,12 +23,14 @@
 Copy this list and check off as you go.
 
 ### Before you start
+
 - [ ] **A1** Frontend live at `https://claude-code-verify.vercel.app`
 - [ ] **A2** Clerk app created; you have **Publishable** (`pk_...`) and **Secret** (`sk_...`) keys
 - [ ] **A3** Anthropic account + API key (`sk-ant-...`) with billing enabled
 - [ ] **A4** [Render](https://render.com) account + GitHub connected to `ClaudeCodeVerify`
 
 ### Render (backend)
+
 - [ ] **B1** Blueprint deployed from `render-api.yaml`
 - [ ] **B2** Postgres `architectai-db` status **Available**
 - [ ] **B3** Redis `architectai-redis` status **Available**
@@ -38,15 +40,18 @@ Copy this list and check off as you go.
 - [ ] **B7** `curl https://YOUR-API/readyz` → 200, database OK
 
 ### Connect frontend (Vercel)
+
 - [ ] **C1** Vercel env `VITE_API_BASE_URL` = your Render API URL (no trailing slash)
 - [ ] **C2** Vercel **Production** redeploy triggered
 - [ ] **C3** Render API `WEB_BASE_URL` = `https://claude-code-verify.vercel.app`
 - [ ] **C4** API redeployed after `WEB_BASE_URL` set
 
 ### Clerk
-- [ ] **D1** Allowed origins includes `https://claude-code-verify.vercel.app` *(you likely did this already)*
+
+- [ ] **D1** Allowed origins includes `https://claude-code-verify.vercel.app` _(you likely did this already)_
 
 ### Smoke test
+
 - [ ] **E1** Sign in on Vercel site
 - [ ] **E2** Start architecture → interrogation → generate → verify → lock → export
 
@@ -60,10 +65,10 @@ Copy this list and check off as you go.
 2. **API keys** → copy **Secret key** (`sk_live_...` or `sk_test_...`).
 3. Use the **same Clerk app** as your Vercel frontend (`VITE_CLERK_PUBLISHABLE_KEY`).
 
-| Variable | Where it goes |
-|----------|----------------|
-| `CLERK_SECRET_KEY` | Render → `architectai-api` env |
-| `CLERK_JWT_KEY` | Optional on Render (leave empty unless you use JWT template) |
+| Variable           | Where it goes                                                |
+| ------------------ | ------------------------------------------------------------ |
+| `CLERK_SECRET_KEY` | Render → `architectai-api` env                               |
+| `CLERK_JWT_KEY`    | Optional on Render (leave empty unless you use JWT template) |
 
 ### 1.2 Anthropic
 
@@ -80,11 +85,11 @@ LLM_MODEL_ASSIST=claude-sonnet-4-20250514
 
 ### 1.3 Note your URLs (fill after first API deploy)
 
-| Variable | Value (use your real API hostname) |
-|----------|-----------------------------------|
-| `PUBLIC_API_URL` | `https://architectai-api.onrender.com` |
-| `PUBLIC_WS_URL` | `wss://architectai-api.onrender.com/ws` |
-| `WEB_BASE_URL` | `https://claude-code-verify.vercel.app` |
+| Variable         | Value (use your real API hostname)      |
+| ---------------- | --------------------------------------- |
+| `PUBLIC_API_URL` | `https://architectai-api.onrender.com`  |
+| `PUBLIC_WS_URL`  | `wss://architectai-api.onrender.com/ws` |
+| `WEB_BASE_URL`   | `https://claude-code-verify.vercel.app` |
 
 `WEB_BASE_URL` must match your Vercel production URL **exactly** (CORS).
 
@@ -100,15 +105,15 @@ LLM_MODEL_ASSIST=claude-sonnet-4-20250514
 
    **`render-api.yaml`**
 
-   *(Not `render.yaml` — that file also defines a static web app you do not need.)*
+   _(Not `render.yaml` — that file also defines a static web app you do not need.)_
 
 4. Click **Apply** / **Create**.
 
 Render creates:
 
-- `architectai-api` — Node web service  
-- `architectai-db` — PostgreSQL  
-- `architectai-redis` — Redis  
+- `architectai-api` — Node web service
+- `architectai-db` — PostgreSQL
+- `architectai-redis` — Redis
 
 Wait until Postgres and Redis show **Available** (green).
 
@@ -116,24 +121,25 @@ Wait until Postgres and Redis show **Available** (green).
 
 Open **architectai-api** → **Environment** → add these (paste your real secrets):
 
-| Key | Value | Required |
-|-----|--------|----------|
-| `APP_ENV` | `production` | Yes *(often preset)* |
-| `RUN_MIGRATIONS_ON_BOOT` | `true` | Yes *(often preset)* |
-| `LLM_PROVIDER` | `anthropic` | Yes |
-| `CLERK_SECRET_KEY` | `sk_live_...` or `sk_test_...` | Yes |
-| `ANTHROPIC_API_KEY` | `sk-ant-...` | Yes |
-| `LLM_MODEL_INTERROGATION` | see above | Yes |
-| `LLM_MODEL_GENERATION` | see above | Yes |
-| `LLM_MODEL_ASSIST` | see above | Yes |
-| `PUBLIC_API_URL` | `https://YOUR-API.onrender.com` | Yes |
-| `PUBLIC_WS_URL` | `wss://YOUR-API.onrender.com/ws` | Yes |
-| `WEB_BASE_URL` | `https://claude-code-verify.vercel.app` | Yes |
-| `VERIFICATION_ENABLED` | `true` | Yes |
-| `DATABASE_URL` | *(auto from blueprint)* | Auto |
-| `REDIS_URL` | *(auto from blueprint)* | Auto |
+| Key                       | Value                                   | Required             |
+| ------------------------- | --------------------------------------- | -------------------- |
+| `APP_ENV`                 | `production`                            | Yes _(often preset)_ |
+| `RUN_MIGRATIONS_ON_BOOT`  | `true`                                  | Yes _(often preset)_ |
+| `LLM_PROVIDER`            | `anthropic`                             | Yes                  |
+| `CLERK_SECRET_KEY`        | `sk_live_...` or `sk_test_...`          | Yes                  |
+| `ANTHROPIC_API_KEY`       | `sk-ant-...`                            | Yes                  |
+| `LLM_MODEL_INTERROGATION` | see above                               | Yes                  |
+| `LLM_MODEL_GENERATION`    | see above                               | Yes                  |
+| `LLM_MODEL_ASSIST`        | see above                               | Yes                  |
+| `PUBLIC_API_URL`          | `https://YOUR-API.onrender.com`         | Yes                  |
+| `PUBLIC_WS_URL`           | `wss://YOUR-API.onrender.com/ws`        | Yes                  |
+| `WEB_BASE_URL`            | `https://claude-code-verify.vercel.app` | Yes                  |
+| `VERIFICATION_ENABLED`    | `true`                                  | Yes                  |
+| `DATABASE_URL`            | _(auto from blueprint)_                 | Auto                 |
+| `REDIS_URL`               | _(auto from blueprint)_                 | Auto                 |
 
 **Rules:**
+
 - No trailing slash on URLs.
 - Do **not** set `LLM_PROVIDER=mock` in production.
 - Do **not** put `CLERK_SECRET_KEY` in Vercel (frontend only gets `pk_...`).
@@ -159,10 +165,10 @@ curl -sS https://YOUR-API/healthz
 curl -sS https://YOUR-API/readyz
 ```
 
-| Endpoint | Expected |
-|----------|----------|
-| `/healthz` | `{"status":"ok",...}` |
-| `/readyz` | HTTP **200**, `"database":{"ok":true}` |
+| Endpoint   | Expected                               |
+| ---------- | -------------------------------------- |
+| `/healthz` | `{"status":"ok",...}`                  |
+| `/readyz`  | HTTP **200**, `"database":{"ok":true}` |
 
 If `/readyz` is **503**: check logs for DB/migration errors; confirm `DATABASE_URL` is linked.
 
@@ -177,8 +183,8 @@ The frontend was built **without** knowing the API URL. You must set it and **re
 1. [Vercel](https://vercel.com) → project **claude-code-verify** → **Settings** → **Environment Variables**.
 2. Add for **Production**:
 
-   | Name | Value |
-   |------|--------|
+   | Name                | Value                           |
+   | ------------------- | ------------------------------- |
    | `VITE_API_BASE_URL` | `https://YOUR-API.onrender.com` |
 
    No trailing slash.
@@ -201,25 +207,25 @@ If you changed it after first deploy → **Manual Deploy** API again.
 
 Use an incognito window: [https://claude-code-verify.vercel.app](https://claude-code-verify.vercel.app)
 
-| Step | Action | Pass? |
-|------|--------|-------|
-| 1 | Clerk sign-in | ☐ |
-| 2 | New architecture (prompt ≥ 20 chars) | ☐ |
-| 3 | Complete interrogation (≥ 3 answers) | ☐ |
-| 4 | Generation finishes (progress/SSE) | ☐ |
-| 5 | Verification pass runs | ☐ |
-| 6 | Lock architecture | ☐ |
-| 7 | Export to repo — ZIP downloads | ☐ |
+| Step | Action                               | Pass? |
+| ---- | ------------------------------------ | ----- |
+| 1    | Clerk sign-in                        | ☐     |
+| 2    | New architecture (prompt ≥ 20 chars) | ☐     |
+| 3    | Complete interrogation (≥ 3 answers) | ☐     |
+| 4    | Generation finishes (progress/SSE)   | ☐     |
+| 5    | Verification pass runs               | ☐     |
+| 6    | Lock architecture                    | ☐     |
+| 7    | Export to repo — ZIP downloads       | ☐     |
 
 ### If something fails
 
-| Symptom | Fix |
-|---------|-----|
-| Network error / CORS in browser DevTools | `WEB_BASE_URL` on API = Vercel URL; redeploy API |
-| 401 Unauthorized | Same Clerk app for `pk_` (Vercel) and `sk_` (API) |
-| API calls go to wrong host | Redeploy Vercel after setting `VITE_API_BASE_URL` |
-| Generation stuck | Check Redis on Render; check Anthropic key/quota in API logs |
-| `/readyz` 503 | Postgres not ready or migrations failed — read API logs |
+| Symptom                                  | Fix                                                          |
+| ---------------------------------------- | ------------------------------------------------------------ |
+| Network error / CORS in browser DevTools | `WEB_BASE_URL` on API = Vercel URL; redeploy API             |
+| 401 Unauthorized                         | Same Clerk app for `pk_` (Vercel) and `sk_` (API)            |
+| API calls go to wrong host               | Redeploy Vercel after setting `VITE_API_BASE_URL`            |
+| Generation stuck                         | Check Redis on Render; check Anthropic key/quota in API logs |
+| `/readyz` 503                            | Postgres not ready or migrations failed — read API logs      |
 
 ---
 
@@ -237,12 +243,12 @@ cp .env.production.example .env.production
 
 ## Part 6 — Costs & ops notes
 
-| Service | Render plan (starter) | Notes |
-|---------|------------------------|-------|
-| API | ~$7/mo | Spins down on free tier — use **Starter** for always-on |
-| Postgres | ~$7/mo (`basic-256mb` + storage) | Required — legacy `starter` plan no longer supported |
-| Redis | ~$10/mo | Strongly recommended for SSE + rate limits |
-| Vercel | Your existing plan | Frontend unchanged |
+| Service  | Render plan (starter)            | Notes                                                   |
+| -------- | -------------------------------- | ------------------------------------------------------- |
+| API      | ~$7/mo                           | Spins down on free tier — use **Starter** for always-on |
+| Postgres | ~$7/mo (`basic-256mb` + storage) | Required — legacy `starter` plan no longer supported    |
+| Redis    | ~$10/mo                          | Strongly recommended for SSE + rate limits              |
+| Vercel   | Your existing plan               | Frontend unchanged                                      |
 
 **Render free tier:** API sleeps after inactivity; first request is slow. For demos, upgrade API to Starter.
 
@@ -253,10 +259,10 @@ cp .env.production.example .env.production
 
 ## Part 7 — Rollback
 
-| Problem | Action |
-|---------|--------|
-| Bad API release | Render → **Rollback** to previous deploy |
-| Bad env change | Revert env vars → Manual Deploy |
+| Problem                      | Action                                               |
+| ---------------------------- | ---------------------------------------------------- |
+| Bad API release              | Render → **Rollback** to previous deploy             |
+| Bad env change               | Revert env vars → Manual Deploy                      |
 | Frontend points at wrong API | Fix `VITE_API_BASE_URL` → Redeploy Vercel Production |
 
 Database migrations are **forward-only** — do not downgrade Postgres schema without a planned SQL revert.

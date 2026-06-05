@@ -8,64 +8,66 @@
 
 ## Cost comparison
 
-| Stack | ~Monthly | Good for |
-|-------|----------|----------|
-| **`render-api.yaml`** (API starter + Redis + Postgres basic) | **~$27** | Always-on production |
-| **`render-api-demo.yaml`** (API free + Postgres free, no Redis) | **~$0** on Render* | 30-day product demo |
+| Stack                                                                         | ~Monthly | Good for                                        |
+| ----------------------------------------------------------------------------- | -------- | ----------------------------------------------- |
+| **`render-api.yaml`** (API starter + Redis + Postgres basic)                  | **~$27** | Always-on production                            |
+| **`render-api-no-redis.yaml`** ⭐ (API starter + Postgres free, **no Redis**) | **~$7**  | **15-day demo — API always on, no cold starts** |
+| **`render-api-demo.yaml`** (API free + Postgres free, no Redis)               | **~$0**  | Cheapest; cold starts after idle                |
 
-\*Render free Postgres **expires after 30 days**. Anthropic API usage is separate (pay per token).
+\*Render free Postgres **expires after 30 days** (covers your 15-day window). Anthropic API usage is separate (pay per token).
+
+### ⭐ Recommended for you: `render-api-no-redis.yaml`
+
+- **Redis removed** → saves ~$10/mo (API uses in-memory streaming — fine for 1 demo user)
+- **API `starter`** → always on, **no 30–60s cold start**
+- **Postgres `free`** → $0 for 15 days (within 30-day free DB limit)
+- **~$7 total** on Render for the month (~$3.50 if you delete the API after 15 days)
 
 ### Where ~$27 comes from (`render-api.yaml`)
 
-| Resource | Plan | ~Cost |
-|----------|------|-------|
-| API | starter | ~$7 |
-| Redis (Key Value) | starter | ~$10 |
-| Postgres | basic-256mb + 15 GB storage | ~$10 |
+| Resource          | Plan                        | ~Cost |
+| ----------------- | --------------------------- | ----- |
+| API               | starter                     | ~$7   |
+| Redis (Key Value) | starter                     | ~$10  |
+| Postgres          | basic-256mb + 15 GB storage | ~$10  |
 
 ---
 
-## Recommended: demo blueprint (~$0)
+## Step-by-step — always-on API, no Redis (`render-api-no-redis.yaml`)
 
-Use **`render-api-demo.yaml`** instead of `render-api.yaml`.
+### If you already created the ~$27 Blueprint
 
-**What we remove / change:**
+1. Render Dashboard → **delete** service **`architectai-redis`** (saves ~$10/mo immediately).
+2. On **`architectai-api`**: confirm **Plan = Starter** (not Free) so it stays always on.
+3. On **`architectai-db`**: switch to **Free** plan if you only need 15 days (Settings → change instance type).
+4. Ensure API env `REDIS_URL` is **not** linked to Redis — use `redis://127.0.0.1:6379` (in-memory fallback).
 
-| Change | Saves | Demo impact |
-|--------|-------|-------------|
-| **No Redis** | ~$10/mo | API uses in-memory SSE (fine for 1 user demo) |
-| **API `plan: free`** | ~$7/mo | Cold start ~30–60s if idle 15+ min — wake API before demo |
-| **Postgres `plan: free`** | ~$10/mo | 1 GB, **expires in 30 days** |
+**Or** delete the whole Blueprint and recreate with **`render-api-no-redis.yaml`**.
 
----
-
-## Step-by-step (demo)
-
-### If you already created the expensive Blueprint
-
-1. Render Dashboard → delete the Blueprint (or delete **architectai-redis** service manually).
-2. Create a **new** Blueprint from the same repo.
-3. Blueprint file: **`render-api-demo.yaml`**
-
-### New Blueprint
+### New Blueprint (cleanest)
 
 1. Render → **New +** → **Blueprint** → repo `ClaudeCodeVerify`.
-2. Blueprint file: **`render-api-demo.yaml`**
-3. Blueprint name: e.g. `claude-code-verify-demo`
+2. Blueprint file: **`render-api-no-redis.yaml`**
+3. Blueprint name: e.g. `claude-code-verify-15d`
 4. **Apply**
+
+### After 15 days — stop billing
+
+1. Render → **architectai-api** → **Settings** → **Delete Web Service** (or suspend Blueprint).
+2. Vercel frontend can stay up at no extra cost.
 
 ### Set env vars on `architectai-api`
 
 Same as [BACKEND_DEPLOYMENT.md](./BACKEND_DEPLOYMENT.md), especially:
 
-| Key | Value |
-|-----|--------|
-| `CLERK_SECRET_KEY` | your `sk_...` |
-| `ANTHROPIC_API_KEY` | your `sk-ant-...` |
-| `PUBLIC_API_URL` | `https://architectai-api.onrender.com` (your URL) |
-| `PUBLIC_WS_URL` | `wss://architectai-api.onrender.com/ws` |
-| `WEB_BASE_URL` | `https://claude-code-verify.vercel.app` |
-| `LLM_MODEL_*` | your model IDs |
+| Key                 | Value                                             |
+| ------------------- | ------------------------------------------------- |
+| `CLERK_SECRET_KEY`  | your `sk_...`                                     |
+| `ANTHROPIC_API_KEY` | your `sk-ant-...`                                 |
+| `PUBLIC_API_URL`    | `https://architectai-api.onrender.com` (your URL) |
+| `PUBLIC_WS_URL`     | `wss://architectai-api.onrender.com/ws`           |
+| `WEB_BASE_URL`      | `https://claude-code-verify.vercel.app`           |
+| `LLM_MODEL_*`       | your model IDs                                    |
 
 `DATABASE_URL` is auto-linked. `REDIS_URL` is preset (no Redis bill).
 
@@ -77,9 +79,10 @@ Same as [BACKEND_DEPLOYMENT.md](./BACKEND_DEPLOYMENT.md), especially:
 
 ### Before the demo with your product leader
 
-1. Open the API URL once (`/healthz`) **2 minutes early** to wake the free service.
-2. Open `https://claude-code-verify.vercel.app` in incognito.
-3. Run: sign in → architecture → interrogate → generate → verify → lock → export.
+With **starter** API (`render-api-no-redis.yaml`), no wake-up step needed — API is always on.
+
+1. Open `https://claude-code-verify.vercel.app` in incognito.
+2. Run: sign in → architecture → interrogate → generate → verify → lock → export.
 
 ---
 
