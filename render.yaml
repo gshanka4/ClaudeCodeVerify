@@ -53,10 +53,11 @@ services:
       - key: LLM_MODEL_ASSIST
         sync: false
 
-  - type: redis
+  - type: keyvalue
     name: architectai-redis
     plan: starter
-    maxmemoryPolicy: allkeys_lru
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
 
   - type: web
     name: architectai-web

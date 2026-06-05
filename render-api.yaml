@@ -34,7 +34,7 @@ services:
       - key: REDIS_URL
         fromService:
           name: architectai-redis
-          type: redis
+          type: keyvalue
           property: connectionString
       - key: CLERK_SECRET_KEY
         sync: false
@@ -57,10 +57,11 @@ services:
       - key: LLM_SESSION_MAX_OUTPUT_TOKENS
         value: "50000"
 
-  - type: redis
+  - type: keyvalue
     name: architectai-redis
     plan: starter
-    maxmemoryPolicy: allkeys_lru
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
 
 databases:
   - name: architectai-db
