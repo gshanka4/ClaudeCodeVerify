@@ -41,8 +41,18 @@ export async function withTenant<T>(
 ): Promise<T> {
   return db.transaction(async (tx) => {
     // Role name is a constant — safe to inline. Context values are parameterized.
-    await tx.execute(sql`SET LOCAL ROLE app_user`);
-    await tx.execute(sql`SELECT set_config('app.current_organization_id', ${ctx.organizationId}, true)`);
+    try {
+      await tx.execute(sql`SET LOCAL ROLE app_user`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `Cannot SET LOCAL ROLE app_user (${message}). ` +
+          "Run DB migrations (0003_grant_app_user_role) on this database.",
+      );
+    }
+    await tx.execute(
+      sql`SELECT set_config('app.current_organization_id', ${ctx.organizationId}, true)`,
+    );
     await tx.execute(sql`SELECT set_config('app.current_user_id', ${ctx.userId}, true)`);
     return cb(tx);
   });
