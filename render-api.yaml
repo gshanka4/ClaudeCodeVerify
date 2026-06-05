@@ -65,6 +65,7 @@ services:
 
 databases:
   - name: architectai-db
-    plan: starter
+    plan: basic-256mb
+    diskSizeGB: 15
     databaseName: architectai
     user: architectai

@@ -238,7 +238,7 @@ cp .env.production.example .env.production
 | Service | Render plan (starter) | Notes |
 |---------|------------------------|-------|
 | API | ~$7/mo | Spins down on free tier — use **Starter** for always-on |
-| Postgres | ~$7/mo | Required |
+| Postgres | ~$7/mo (`basic-256mb` + storage) | Required — legacy `starter` plan no longer supported |
 | Redis | ~$10/mo | Strongly recommended for SSE + rate limits |
 | Vercel | Your existing plan | Frontend unchanged |
 
