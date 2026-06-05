@@ -12,6 +12,8 @@
 **Repo:** [github.com/gshanka4/ClaudeCodeVerify](https://github.com/gshanka4/ClaudeCodeVerify)  
 **Blueprint file:** `render-api.yaml` (API only — does not redeploy your Vercel frontend)
 
+**Demo / low cost (~$0):** use **`render-api-demo.yaml`** instead — see [DEMO_DEPLOYMENT.md](./DEMO_DEPLOYMENT.md) (~$27/mo vs ~$0).
+
 **Estimated time:** 1–2 hours
 
 ---

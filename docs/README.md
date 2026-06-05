@@ -5,7 +5,8 @@
 | Doc | Purpose |
 |-----|---------|
 | [VERCEL_FRONTEND_DEPLOY.md](./VERCEL_FRONTEND_DEPLOY.md) | Frontend on Vercel (done) |
-| [BACKEND_DEPLOYMENT.md](./BACKEND_DEPLOYMENT.md) | **Backend next** — API + Postgres + Redis on Render |
+| [DEMO_DEPLOYMENT.md](./DEMO_DEPLOYMENT.md) | **Low cost demo** (~$0) — product leader review |
+| [BACKEND_DEPLOYMENT.md](./BACKEND_DEPLOYMENT.md) | Full backend — API + Postgres + Redis (~$27/mo) |
 | [PRODUCTION_OPERATOR_RUNBOOK.md](./PRODUCTION_OPERATOR_RUNBOOK.md) | Full stack variant |
 | [DEPLOYMENT_PLAN.md](./DEPLOYMENT_PLAN.md) | Phased production deploy summary |
 | [PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md) | Requirements matrix + checklist |
