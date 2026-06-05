@@ -1,9 +1,13 @@
 import type { UserRole } from "@architectai/shared";
+import { createClerkClient } from "@clerk/backend";
 import { eq } from "drizzle-orm";
 import type { RequestHandler } from "express";
 import type { AppDatabase, TenantContext } from "@/db/client";
 import { schema } from "@/db/schema";
 import { ApiError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
+import { seedDefaultRuleset } from "@/services/governance.service";
+import { provisionClerkUser } from "@/services/provision.service";
 
 /** Identity + tenant context resolved for an authenticated request. */
 export interface AuthContext extends TenantContext {
@@ -57,11 +61,51 @@ export async function resolveUserByClerkId(
   };
 }
 
+async function resolveOrProvisionUser(
+  db: AppDatabase,
+  clerkUserId: string,
+  clerkSecretKey?: string,
+): Promise<AuthContext | null> {
+  const existing = await resolveUserByClerkId(db, clerkUserId);
+  if (existing) return existing;
+  if (!clerkSecretKey?.trim()) return null;
+
+  const clerk = createClerkClient({ secretKey: clerkSecretKey });
+  const cu = await clerk.users.getUser(clerkUserId);
+  const email =
+    cu.emailAddresses.find((e) => e.id === cu.primaryEmailAddressId)?.emailAddress ??
+    cu.emailAddresses[0]?.emailAddress ??
+    `${clerkUserId}@users.clerk`;
+  const displayName =
+    [cu.firstName, cu.lastName].filter(Boolean).join(" ") ||
+    cu.username ||
+    email.split("@")[0] ||
+    "User";
+
+  const provisioned = await provisionClerkUser(db, {
+    clerkId: clerkUserId,
+    email,
+    displayName,
+  });
+  await db.transaction(async (tx) => {
+    await seedDefaultRuleset(tx, {
+      organizationId: provisioned.organizationId,
+      createdById: provisioned.userId,
+    });
+  });
+  logger.info({ clerkUserId }, "Provisioned Clerk user on first API sign-in");
+  return resolveUserByClerkId(db, clerkUserId);
+}
+
 /**
  * Auth-upfront gate: every `/api` route (except explicitly public ones) requires
  * a valid bearer token AND a provisioned user. Fail-closed on every branch.
  */
-export function requireAuth(deps: { db: AppDatabase; verifier: TokenVerifier }): RequestHandler {
+export function requireAuth(deps: {
+  db: AppDatabase;
+  verifier: TokenVerifier;
+  clerkSecretKey?: string;
+}): RequestHandler {
   return (req, _res, next) => {
     void (async () => {
       const token = extractToken(req.header("authorization"));
@@ -70,11 +114,12 @@ export function requireAuth(deps: { db: AppDatabase; verifier: TokenVerifier }):
       let verified: VerifiedToken;
       try {
         verified = await deps.verifier.verify(token);
-      } catch {
+      } catch (err) {
+        logger.warn({ err }, "Clerk token verification failed");
         throw ApiError.unauthorized("Invalid or expired token");
       }
 
-      const user = await resolveUserByClerkId(deps.db, verified.clerkUserId);
+      const user = await resolveOrProvisionUser(deps.db, verified.clerkUserId, deps.clerkSecretKey);
       if (!user) throw ApiError.unauthorized("User is not provisioned");
 
       req.auth = user;

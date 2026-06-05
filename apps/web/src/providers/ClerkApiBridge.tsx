@@ -9,7 +9,7 @@ export function ClerkApiBridge({ children }: { children: React.ReactNode }): JSX
   useEffect(() => {
     setApiTokenGetter(async () => {
       try {
-        return await getToken();
+        return await getToken({ skipCache: true });
       } catch {
         return null;
       }

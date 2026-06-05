@@ -14,8 +14,9 @@ export function createClerkVerifier(opts: {
     async verify(token: string) {
       const payload = await verifyToken(token, {
         secretKey: opts.secretKey,
+        clockSkewInMs: 60_000,
         ...(opts.jwtKey ? { jwtKey: opts.jwtKey } : {}),
-        ...(opts.authorizedParties ? { authorizedParties: opts.authorizedParties } : {}),
+        ...(opts.authorizedParties?.length ? { authorizedParties: opts.authorizedParties } : {}),
       });
       if (!payload.sub) throw new Error("Token missing subject");
       return { clerkUserId: payload.sub };

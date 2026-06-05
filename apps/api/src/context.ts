@@ -33,4 +33,6 @@ export interface AppContext {
   redis?: IORedis | null;
   /** Production web origin for CORS (from WEB_BASE_URL). */
   webBaseUrl?: string;
+  /** Clerk secret for first-sign-in user provisioning. */
+  clerkSecretKey?: string;
 }

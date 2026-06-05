@@ -39,3 +39,35 @@ export async function provisionDevUser(
     .returning();
   return { organizationId: org!.id, userId: user!.id, role, clerkId };
 }
+
+/** First sign-in from Clerk — creates org + user (demo deploy; no webhook required). */
+export async function provisionClerkUser(
+  db: AppDatabase,
+  input: { clerkId: string; email: string; displayName: string; role?: UserRole },
+): Promise<ProvisionedUser> {
+  const role = input.role ?? "owner";
+  const slugSuffix = input.clerkId.replace(/[^a-zA-Z0-9]/g, "").slice(-12) || "user";
+  const [org] = await db
+    .insert(schema.organizations)
+    .values({
+      name: `${input.displayName}'s workspace`,
+      slug: `org-${slugSuffix}-${Date.now()}`,
+    })
+    .returning();
+  const [user] = await db
+    .insert(schema.users)
+    .values({
+      clerkId: input.clerkId,
+      organizationId: org!.id,
+      email: input.email,
+      displayName: input.displayName,
+      role,
+    })
+    .returning();
+  return {
+    organizationId: org!.id,
+    userId: user!.id,
+    role,
+    clerkId: user!.clerkId,
+  };
+}

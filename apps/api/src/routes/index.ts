@@ -31,7 +31,13 @@ export function createApiRouter(ctx: AppContext): Router {
   api.use("/cursor", createCursorHotPathRouter(ctx));
   api.use("/agent", createAgentHotPathRouter(ctx));
 
-  api.use(requireAuth({ db: ctx.db, verifier: ctx.verifier }));
+  api.use(
+    requireAuth({
+      db: ctx.db,
+      verifier: ctx.verifier,
+      clerkSecretKey: ctx.clerkSecretKey,
+    }),
+  );
   api.use(
     rateLimit({
       store: ctx.rateLimitStore,

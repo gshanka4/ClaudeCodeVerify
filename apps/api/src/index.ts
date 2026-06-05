@@ -110,12 +110,14 @@ async function main(): Promise<void> {
     );
   }
 
+  const webBaseUrl = config.env.WEB_BASE_URL?.trim().replace(/\/$/, "") || undefined;
   const useDevAuth = config.env.APP_ENV === "local" && !config.env.CLERK_SECRET_KEY?.trim();
   const verifier = useDevAuth
     ? devTokenVerifier
     : createClerkVerifier({
         secretKey: config.env.CLERK_SECRET_KEY ?? "",
-        jwtKey: config.env.CLERK_JWT_KEY,
+        jwtKey: config.env.CLERK_JWT_KEY?.trim() || undefined,
+        authorizedParties: webBaseUrl ? [webBaseUrl] : undefined,
       });
   if (useDevAuth) {
     logger.warn(
@@ -147,7 +149,8 @@ async function main(): Promise<void> {
     tier2VerificationEnabled: config.tier2VerificationEnabled,
     verificationStreamBackend,
     redis,
-    webBaseUrl: config.env.WEB_BASE_URL,
+    webBaseUrl,
+    clerkSecretKey: config.env.CLERK_SECRET_KEY,
   };
   const root = express();
   root.disable("x-powered-by");
