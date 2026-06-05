@@ -13,10 +13,7 @@ import { devTokenVerifier } from "@/lib/dev-auth";
 import { logger } from "@/lib/logger";
 import { seedDefaultRuleset } from "@/services/governance.service";
 import { provisionDevUser } from "@/services/provision.service";
-import {
-  InMemoryGenerationStreamHub,
-  RedisGenerationStreamHub,
-} from "@/generation/stream-hub";
+import { InMemoryGenerationStreamHub, RedisGenerationStreamHub } from "@/generation/stream-hub";
 import {
   InMemoryVerificationStreamHub,
   RedisVerificationStreamHub,
@@ -29,13 +26,66 @@ import {
 } from "@/middleware/rate-limit";
 import { createDriftEngineState } from "@/services/drift.service";
 
-function shouldRunMigrationsOnBoot(
-  explicit: boolean | null,
-  isProduction: boolean,
-): boolean {
+function shouldRunMigrationsOnBoot(explicit: boolean | null, isProduction: boolean): boolean {
   if (explicit === true) return true;
   if (explicit === false) return false;
   return isProduction;
+}
+
+/** No-Redis deploys use a local stub URL; skip connecting so ioredis does not retry. */
+function isRedisSkipped(redisUrl: string): boolean {
+  try {
+    const host = new URL(redisUrl).hostname;
+    return host === "127.0.0.1" || host === "localhost";
+  } catch {
+    return false;
+  }
+}
+
+async function initRedisBackend(redisUrl: string): Promise<{
+  redis: IORedis | null;
+  rateLimitStore: RateLimitStore;
+  genHub: import("@/generation/stream-hub").GenerationStreamHub;
+  verifyHub: import("@/verification/stream-hub").VerificationStreamHub;
+  verificationStreamBackend: "memory" | "redis";
+}> {
+  const memory = () => ({
+    redis: null,
+    rateLimitStore: new InMemoryRateLimitStore(),
+    genHub: new InMemoryGenerationStreamHub(),
+    verifyHub: new InMemoryVerificationStreamHub(),
+    verificationStreamBackend: "memory" as const,
+  });
+
+  if (isRedisSkipped(redisUrl)) {
+    logger.info("REDIS_URL is a local stub — using in-memory SSE and rate limits");
+    return memory();
+  }
+
+  let redis: IORedis | null = null;
+  try {
+    redis = new IORedis(redisUrl, {
+      maxRetriesPerRequest: 2,
+      enableOfflineQueue: false,
+      lazyConnect: true,
+      retryStrategy: () => null,
+    });
+    redis.on("error", (err) => {
+      logger.warn({ err }, "Redis client error");
+    });
+    await redis.connect();
+    return {
+      redis,
+      rateLimitStore: new RedisRateLimitStore(redis),
+      genHub: new RedisGenerationStreamHub(redis),
+      verifyHub: new RedisVerificationStreamHub(redis),
+      verificationStreamBackend: "redis",
+    };
+  } catch (err) {
+    redis?.disconnect();
+    logger.warn({ err }, "Redis unavailable — falling back to in-memory rate limit and SSE hubs");
+    return memory();
+  }
 }
 
 async function main(): Promise<void> {
@@ -54,11 +104,13 @@ async function main(): Promise<void> {
 
   if (shouldRunMigrationsOnBoot(config.env.RUN_MIGRATIONS_ON_BOOT, config.isProduction)) {
     const applied = await runMigrations(pgClient(getDbPool()));
-    logger.info({ applied }, applied.length > 0 ? "Migrations applied at boot" : "Schema up to date");
+    logger.info(
+      { applied },
+      applied.length > 0 ? "Migrations applied at boot" : "Schema up to date",
+    );
   }
 
-  const useDevAuth =
-    config.env.APP_ENV === "local" && !config.env.CLERK_SECRET_KEY?.trim();
+  const useDevAuth = config.env.APP_ENV === "local" && !config.env.CLERK_SECRET_KEY?.trim();
   const verifier = useDevAuth
     ? devTokenVerifier
     : createClerkVerifier({
@@ -71,24 +123,8 @@ async function main(): Promise<void> {
     );
   }
 
-  let redis: IORedis | null = null;
-  let rateLimitStore: RateLimitStore;
-  let genHub: import("@/generation/stream-hub").GenerationStreamHub =
-    new InMemoryGenerationStreamHub();
-  let verifyHub: import("@/verification/stream-hub").VerificationStreamHub =
-    new InMemoryVerificationStreamHub();
-  let verificationStreamBackend: "memory" | "redis" = "memory";
-  try {
-    redis = new IORedis(config.env.REDIS_URL, { maxRetriesPerRequest: 2 });
-    await redis.connect();
-    rateLimitStore = new RedisRateLimitStore(redis);
-    genHub = new RedisGenerationStreamHub(redis);
-    verifyHub = new RedisVerificationStreamHub(redis);
-    verificationStreamBackend = "redis";
-  } catch (err) {
-    logger.warn({ err }, "Redis unavailable — falling back to in-memory rate limit and SSE hubs");
-    rateLimitStore = new InMemoryRateLimitStore();
-  }
+  const { redis, rateLimitStore, genHub, verifyHub, verificationStreamBackend } =
+    await initRedisBackend(config.env.REDIS_URL);
 
   const llm = createLlmGateway({
     LLM_PROVIDER: config.env.LLM_PROVIDER,
