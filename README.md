@@ -54,8 +54,9 @@ Without Clerk keys, the API uses **dev auth** and `POST /__dev__/provision`. In 
 
 ## Production deployment (v1)
 
-**Frontend only (stable Vercel link):** [docs/VERCEL_FRONTEND_DEPLOY.md](./docs/VERCEL_FRONTEND_DEPLOY.md)  
-**Full stack:** [docs/PRODUCTION_OPERATOR_RUNBOOK.md](./docs/PRODUCTION_OPERATOR_RUNBOOK.md) · [docs/DEPLOYMENT_PLAN.md](./docs/DEPLOYMENT_PLAN.md)
+**Frontend (Vercel):** [docs/VERCEL_FRONTEND_DEPLOY.md](./docs/VERCEL_FRONTEND_DEPLOY.md)  
+**Backend (Render):** [docs/BACKEND_DEPLOYMENT.md](./docs/BACKEND_DEPLOYMENT.md)  
+**Full stack:** [docs/PRODUCTION_OPERATOR_RUNBOOK.md](./docs/PRODUCTION_OPERATOR_RUNBOOK.md)
 
 ```bash
 pnpm validate:prod-env     # dry-run production env (needs WEB_BASE_URL, Clerk, etc.)

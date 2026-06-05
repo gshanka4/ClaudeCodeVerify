@@ -4,8 +4,9 @@
 
 | Doc | Purpose |
 |-----|---------|
-| [VERCEL_FRONTEND_DEPLOY.md](./VERCEL_FRONTEND_DEPLOY.md) | **Frontend first** — stable `*.vercel.app` production link |
-| [PRODUCTION_OPERATOR_RUNBOOK.md](./PRODUCTION_OPERATOR_RUNBOOK.md) | Full stack — API + DB + web |
+| [VERCEL_FRONTEND_DEPLOY.md](./VERCEL_FRONTEND_DEPLOY.md) | Frontend on Vercel (done) |
+| [BACKEND_DEPLOYMENT.md](./BACKEND_DEPLOYMENT.md) | **Backend next** — API + Postgres + Redis on Render |
+| [PRODUCTION_OPERATOR_RUNBOOK.md](./PRODUCTION_OPERATOR_RUNBOOK.md) | Full stack variant |
 | [DEPLOYMENT_PLAN.md](./DEPLOYMENT_PLAN.md) | Phased production deploy summary |
 | [PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md) | Requirements matrix + checklist |
 | [production_deployment_plan.md](./production_deployment_plan.md) | LLM evaluation + Option B staging history |
