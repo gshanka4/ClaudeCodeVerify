@@ -20,6 +20,7 @@ export function ExportEducationModal({ open, onContinue, onClose }: Props): JSX.
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
       data-testid="export-education-modal"
       role="dialog"
+      aria-modal="true"
       aria-labelledby="export-education-title"
     >
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border-muted bg-bg-panel p-6 shadow-xl">
@@ -38,10 +39,7 @@ export function ExportEducationModal({ open, onContinue, onClose }: Props): JSX.
           <h3 className="text-sm font-medium text-text-secondary">Artifacts included</h3>
           <ul className="mt-2 space-y-2" data-testid="export-artifact-list">
             {EXPORT_ARTIFACTS.map((a) => (
-              <li
-                key={a.path}
-                className="rounded-lg border border-border-subtle px-3 py-2 text-xs"
-              >
+              <li key={a.path} className="rounded-lg border border-border-subtle px-3 py-2 text-xs">
                 <p className="font-mono text-brand-violet">{a.path}</p>
                 <p className="font-medium text-text-primary">{a.title}</p>
                 <p className="text-text-muted">{a.description}</p>

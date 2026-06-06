@@ -47,7 +47,10 @@ export const IDE_OPTIONS: IdeOption[] = [
   },
 ];
 
-export const LEGACY_IDE_OPTIONS = IDE_OPTIONS.filter((o) => o.legacy || o.copyOnly);
+/** Legacy GUI IDEs only — Claude Code uses ClaudeCodeSetupModal. */
+export const LEGACY_IDE_OPTIONS = IDE_OPTIONS.filter(
+  (o) => o.id !== "claude-code" && (o.legacy || o.copyOnly),
+);
 
 const IDE_SCHEMES: Partial<Record<IdeTarget, string>> = {
   vscode: "vscode",

@@ -2,6 +2,10 @@ import { INTERROGATION } from "@architectai/config";
 import { useAuth, useClerk } from "@clerk/clerk-react";
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import {
+  LandingProgressSheet,
+  type LandingProgressStep,
+} from "@/components/landing/LandingProgressSheet";
 import { ApiClientError, startInterrogation } from "@/lib/api";
 import { useSessionStore } from "@/stores/useSessionStore";
 import { LandingHero } from "./LandingHero";
@@ -10,6 +14,7 @@ export function LandingPageClerk(): JSX.Element {
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [progressStep, setProgressStep] = useState<LandingProgressStep | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { isSignedIn } = useAuth();
@@ -26,12 +31,20 @@ export function LandingPageClerk(): JSX.Element {
 
   const runGenerate = useCallback(async () => {
     if (!valid) {
-      setError(`Please describe your requirements (minimum ${INTERROGATION.minPromptChars} characters)`);
+      setError(
+        `Please describe your requirements (minimum ${INTERROGATION.minPromptChars} characters)`,
+      );
       return;
     }
     setLoading(true);
+    setProgressStep("session");
+    const started = Date.now();
     try {
+      setProgressStep("first-question");
       const result = await startInterrogation({ prompt: trimmed, importType: "text" });
+      setProgressStep("navigate");
+      const elapsed = Date.now() - started;
+      if (elapsed < 400) await new Promise((r) => setTimeout(r, 400 - elapsed));
       store.setFromStart(
         result.sessionId,
         {
@@ -55,6 +68,7 @@ export function LandingPageClerk(): JSX.Element {
       setError(e instanceof ApiClientError ? e.message : "Failed to start");
     } finally {
       setLoading(false);
+      setProgressStep(null);
     }
   }, [valid, trimmed, navigate, store]);
 
@@ -84,6 +98,7 @@ export function LandingPageClerk(): JSX.Element {
       error={error}
       valid={valid}
       loading={loading}
+      progressSheet={progressStep ? <LandingProgressSheet activeStep={progressStep} /> : null}
       onGenerate={onGenerate}
       headerExtra={null}
     />

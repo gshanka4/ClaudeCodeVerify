@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Maximize2 } from "lucide-react";
+import { DriftWorkspaceEducationModal } from "@/components/export/DriftWorkspaceEducationModal";
 import { ExportEducationModal } from "@/components/export/ExportEducationModal";
 import { WorkspaceCoachMarks } from "@/components/journey/WorkspaceCoachMarks";
 import { ClaudeCodeSetupModal } from "@/components/export/ClaudeCodeSetupModal";
@@ -27,6 +28,7 @@ export default function WorkspacePage(): JSX.Element {
   const [lockedVersion, setLockedVersion] = useState<number | null>(null);
   const [exportEducationOpen, setExportEducationOpen] = useState(false);
   const [claudeCodeSetupOpen, setClaudeCodeSetupOpen] = useState(false);
+  const [driftEducationOpen, setDriftEducationOpen] = useState(false);
 
   const lineageGraphOpen = useWorkspaceStore((s) => s.lineageGraphOpen);
   const openLineageGraph = useWorkspaceStore((s) => s.openLineageGraph);
@@ -54,6 +56,13 @@ export default function WorkspacePage(): JSX.Element {
   useEffect(() => {
     refreshDetail();
   }, [refreshDetail]);
+
+  useEffect(() => {
+    if (!detail || detail.status !== "ready") return;
+    if (!hasSeenDriftWorkspaceEducation()) {
+      setDriftEducationOpen(true);
+    }
+  }, [detail?.status, detail?.id]);
 
   useEffect(() => {
     if (!architectureId) return;
@@ -169,6 +178,11 @@ export default function WorkspacePage(): JSX.Element {
       </div>
 
       <ReExportToast />
+
+      <DriftWorkspaceEducationModal
+        open={driftEducationOpen}
+        onContinue={() => setDriftEducationOpen(false)}
+      />
 
       <ExportEducationModal
         open={exportEducationOpen}

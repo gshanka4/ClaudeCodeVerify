@@ -2,7 +2,8 @@ export const EXPORT_ARTIFACTS = [
   {
     path: "CLAUDE.md",
     title: "Verified baseline (Claude Code)",
-    description: "Merge-safe section with Trust Grade, services, and governance rules for every session.",
+    description:
+      "Merge-safe section with Trust Grade, services, and governance rules for every session.",
   },
   {
     path: ".architectai/manifest.json",
@@ -12,7 +13,8 @@ export const EXPORT_ARTIFACTS = [
   {
     path: ".mcp.json",
     title: "MCP server config",
-    description: "Connects Claude Code to ArchitectAI tools (`architectai_get_trust_grade`, drift checks).",
+    description:
+      "Connects Claude Code to ArchitectAI tools (`architectai_get_trust_grade`, drift checks).",
   },
   {
     path: ".claude/settings.json",
@@ -40,17 +42,20 @@ export const CLAUDE_CODE_SETUP_STEPS = [
   {
     id: "files",
     label: "Write repo files",
-    detail: "Download the bundle, then run `npx architectai init --bundle <file>.json` (merges CLAUDE.md).",
+    detail:
+      "Download the bundle JSON, then run: node scripts/apply-architectai-bundle.mjs <bundle.json> from your repo root.",
   },
   {
-    id: "mcp",
-    label: "Connect MCP",
-    detail: "Run `claude mcp add` using the generated `.mcp.json`, or copy credentials into `.architectai/credentials.json`.",
+    id: "claude",
+    label: "Open Claude Code",
+    detail:
+      "cd your-repo && claude — then ask Claude to read CLAUDE.md and follow the verified baseline.",
   },
   {
     id: "hooks",
-    label: "Enable hooks",
-    detail: "Commit `.claude/settings.json` so PostToolUse drift checks run after agent edits.",
+    label: "Drift hooks active",
+    detail:
+      "PostToolUse hook in .claude/settings.json calls your API after each edit (scripts/architectai-drift.mjs).",
   },
 ] as const;
 

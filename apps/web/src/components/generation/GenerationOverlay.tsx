@@ -6,7 +6,8 @@ import { useGenerationStream } from "@/hooks/useGenerationStream";
 import { useVerificationStream } from "@/hooks/useVerificationStream";
 import { cancelGeneration, getVerificationSummary, triggerVerification } from "@/lib/api";
 
-const MIN_VERIFY_VIEW_MS = 600;
+const MIN_VERIFY_VIEW_MS = 2500;
+const MIN_GENERATION_COMPLETE_MS = 1800;
 
 interface Props {
   architectureId: string;
@@ -31,6 +32,13 @@ export function GenerationOverlay({
   const [cancelling, setCancelling] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const cancelledRef = useRef(false);
+  const generationCompleteAt = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (stream.complete && generationCompleteAt.current === null) {
+      generationCompleteAt.current = Date.now();
+    }
+  }, [stream.complete]);
 
   useEffect(() => {
     if (!stream.complete || verifyRunId) return;
@@ -76,7 +84,11 @@ export function GenerationOverlay({
 
   useEffect(() => {
     if (!verifyComplete) return;
-    const t = setTimeout(() => setReadyToNavigate(true), MIN_VERIFY_VIEW_MS);
+    const generationElapsed = generationCompleteAt.current
+      ? Date.now() - generationCompleteAt.current
+      : MIN_GENERATION_COMPLETE_MS;
+    const waitMs = Math.max(MIN_VERIFY_VIEW_MS, MIN_GENERATION_COMPLETE_MS - generationElapsed, 0);
+    const t = setTimeout(() => setReadyToNavigate(true), waitMs);
     return () => clearTimeout(t);
   }, [verifyComplete]);
 

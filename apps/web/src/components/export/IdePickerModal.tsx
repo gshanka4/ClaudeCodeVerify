@@ -13,7 +13,7 @@ import {
   type ExportLaunchStep,
 } from "@/lib/export-handoff";
 import { EXPORT_LEGACY_CTA, REEXPORT_LEGACY_IDE } from "@/lib/product-copy";
-import { IDE_OPTIONS, type IdeTarget } from "@/lib/ide";
+import { LEGACY_IDE_OPTIONS, type IdeTarget } from "@/lib/ide";
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 
 interface IdePickerModalProps {
@@ -58,9 +58,7 @@ export function IdePickerModal({
 
   const finishHandoffSuccess = () => {
     setLaunchStep("done");
-    useWorkspaceStore
-      .getState()
-      .setReExportMessage(REEXPORT_LEGACY_IDE);
+    useWorkspaceStore.getState().setReExportMessage(REEXPORT_LEGACY_IDE);
     setCopyHint(null);
   };
 
@@ -115,9 +113,7 @@ export function IdePickerModal({
 
       useWorkspaceStore
         .getState()
-        .setReExportMessage(
-          "Export handoff complete — reopen from Export anytime to sync again.",
-        );
+        .setReExportMessage("Export handoff complete — reopen from Export anytime to sync again.");
       if (result.launchMode === "copy-only" || target !== "vscode") {
         setCopyHint("Copy the legacy connect link and open your IDE to finish setup.");
       } else if (ideNative) {
@@ -204,7 +200,7 @@ export function IdePickerModal({
             ) : null}
 
             <ul className="mt-4 space-y-2" data-testid="ide-picker-list">
-              {IDE_OPTIONS.map((opt, index) => (
+              {LEGACY_IDE_OPTIONS.map((opt, index) => (
                 <li key={opt.id}>
                   <button
                     type="button"
@@ -216,7 +212,9 @@ export function IdePickerModal({
                   >
                     <span>
                       <span className="font-medium text-text-primary">{opt.label}</span>
-                      <span className="mt-0.5 block text-xs text-text-muted">{opt.description}</span>
+                      <span className="mt-0.5 block text-xs text-text-muted">
+                        {opt.description}
+                      </span>
                     </span>
                     {opt.recommended ? (
                       <span data-testid="ide-picker-vscode-badge">

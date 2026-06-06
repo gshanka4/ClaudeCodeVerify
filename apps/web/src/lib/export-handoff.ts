@@ -1,11 +1,7 @@
 import type { ExportIdeHandoffResponse, IdeTarget } from "@architectai/shared";
 export type { IdeTarget };
 import { VSCODE_EXTENSION_INSTALL_URI } from "@architectai/shared";
-import {
-  ApiClientError,
-  getHandoffSessionStatus,
-  requestExportIdeHandoff,
-} from "@/lib/api";
+import { ApiClientError, getHandoffSessionStatus, requestExportIdeHandoff } from "@/lib/api";
 import {
   acknowledgeExtensionInstall,
   isExtensionInstallAcknowledged,
@@ -145,7 +141,16 @@ export async function pollHandoffSessionUntilLinked(
 
 export function exportHandoffErrorMessage(err: unknown): string {
   if (err instanceof ApiClientError) {
-    if (err.status === 409) return err.message;
+    if (err.status === 409) {
+      const msg = err.message.toLowerCase();
+      if (msg.includes("verification") || msg.includes("verify")) {
+        return "Complete the Verification Pass on this architecture before exporting.";
+      }
+      if (msg.includes("lock")) {
+        return "Lock the architecture before exporting to repo.";
+      }
+      return err.message;
+    }
     if (err.status === 422) return err.message;
     return err.message;
   }

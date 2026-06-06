@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { PreparingArchitectureBanner } from "@/components/interrogation/PreparingArchitectureBanner";
 import { GenerationOverlay } from "@/components/generation/GenerationOverlay";
+import { GenerationPendingOverlay } from "@/components/generation/GenerationPendingOverlay";
 import { AnsweredRow } from "@/components/interrogation/AnsweredRow";
 import { ImportContextBadge } from "@/components/interrogation/ImportContextBadge";
 import { KeyboardLegend } from "@/components/interrogation/KeyboardLegend";
@@ -13,10 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { KbdHint } from "@/components/ui/KbdHint";
 import { findAnsweredQuestions, useInterrogation } from "@/hooks/useInterrogation";
 import { ApiClientError, startGeneration } from "@/lib/api";
-import {
-  isFreeformSubmitEnabled,
-  shouldAutoStartGeneration,
-} from "@/lib/interrogation-flow";
+import { isFreeformSubmitEnabled, shouldAutoStartGeneration } from "@/lib/interrogation-flow";
 import { loadStoredImportContext } from "@/lib/import-context";
 import { cn } from "@/lib/utils";
 import { useSessionStore } from "@/stores/useSessionStore";
@@ -37,7 +35,7 @@ export default function InterrogationPage(): JSX.Element {
   const isOverlayDismissed = overlayDismissed || overlayDismissedRef.current;
   const overlayArchitectureId = isOverlayDismissed
     ? null
-    : store.generationArchitectureId ?? generatingFromQuery ?? null;
+    : (store.generationArchitectureId ?? generatingFromQuery ?? null);
 
   const {
     loading,
@@ -58,7 +56,7 @@ export default function InterrogationPage(): JSX.Element {
   const session = store.session;
   const isEditing = Boolean(store.editingQuestionId);
   const current = store.editingQuestionId
-    ? session?.questions.find((q) => q.id === store.editingQuestionId) ?? store.currentQuestion
+    ? (session?.questions.find((q) => q.id === store.editingQuestionId) ?? store.currentQuestion)
     : store.currentQuestion;
   const answered = session ? findAnsweredQuestions(session.questions) : [];
   const freeformActive = freeform.trim().length > 0 && !isEditing;
@@ -88,22 +86,25 @@ export default function InterrogationPage(): JSX.Element {
     setFreeform(current.freeformAnswer ?? "");
   }, [current?.id]);
 
-  const dismissOverlay = useCallback((streamError?: string | null) => {
-    overlayDismissedRef.current = true;
-    setOverlayDismissed(true);
-    store.setGenerationArchitectureId(null);
-    if (streamError) {
-      setGenError(streamError);
-      generationStartedRef.current = false;
-    } else {
-      generationStartedRef.current = true;
-    }
-    if (generatingFromQuery && sessionId) {
-      const next = new URL(window.location.href);
-      next.searchParams.delete("generating");
-      window.history.replaceState(null, "", next.pathname + next.search);
-    }
-  }, [store, generatingFromQuery, sessionId]);
+  const dismissOverlay = useCallback(
+    (streamError?: string | null) => {
+      overlayDismissedRef.current = true;
+      setOverlayDismissed(true);
+      store.setGenerationArchitectureId(null);
+      if (streamError) {
+        setGenError(streamError);
+        generationStartedRef.current = false;
+      } else {
+        generationStartedRef.current = true;
+      }
+      if (generatingFromQuery && sessionId) {
+        const next = new URL(window.location.href);
+        next.searchParams.delete("generating");
+        window.history.replaceState(null, "", next.pathname + next.search);
+      }
+    },
+    [store, generatingFromQuery, sessionId],
+  );
 
   const runAutoGeneration = useCallback(async () => {
     if (!sessionId || overlayDismissedRef.current) return;
@@ -231,6 +232,7 @@ export default function InterrogationPage(): JSX.Element {
 
   return (
     <div className="min-h-screen bg-bg-base px-6 py-10" data-testid="interrogation-page">
+      {startingGeneration && !overlayArchitectureId ? <GenerationPendingOverlay /> : null}
       {overlayArchitectureId ? (
         <GenerationOverlay
           architectureId={overlayArchitectureId}
@@ -281,7 +283,11 @@ export default function InterrogationPage(): JSX.Element {
         {answered.length > 0 ? (
           <section className="mb-8 space-y-2" data-testid="answered-questions">
             {answered.map((q) => (
-              <AnsweredRow key={q.id} question={q} onEdit={(id) => store.setEditingQuestionId(id)} />
+              <AnsweredRow
+                key={q.id}
+                question={q}
+                onEdit={(id) => store.setEditingQuestionId(id)}
+              />
             ))}
           </section>
         ) : null}
@@ -290,7 +296,9 @@ export default function InterrogationPage(): JSX.Element {
           <section className="animate-fade-in" data-testid="current-question">
             <KeyboardLegend show={current.index === 0 && !isEditing} />
             {isEditing ? (
-              <p className="mb-2 text-xs text-brand-violet">Editing answer — choose an option, then Save edit</p>
+              <p className="mb-2 text-xs text-brand-violet">
+                Editing answer — choose an option, then Save edit
+              </p>
             ) : null}
             <QuestionContext category={current.category} />
             <h2 className="mb-4 text-lg font-medium text-text-secondary">{current.questionText}</h2>
@@ -336,7 +344,9 @@ export default function InterrogationPage(): JSX.Element {
               </Button>
             </div>
             {freeformActive ? (
-              <p className="mt-1 text-[11px] text-text-ghost">Options disabled while typing — Submit or clear text</p>
+              <p className="mt-1 text-[11px] text-text-ghost">
+                Options disabled while typing — Submit or clear text
+              </p>
             ) : null}
             <LockedPreview />
           </section>
@@ -375,7 +385,8 @@ export default function InterrogationPage(): JSX.Element {
               </Button>
               {current ? (
                 <span className="text-[11px] text-status-amber">
-                  Skip counts toward step {INTERROGATION.maxQuestions} — reduces confidence by ~{current.confidenceImpact}%
+                  Skip counts toward step {INTERROGATION.maxQuestions} — reduces confidence by ~
+                  {current.confidenceImpact}%
                 </span>
               ) : null}
             </div>
@@ -454,7 +465,11 @@ function StepDots({ total, current }: { total: number; current: number }): JSX.E
             key={i}
             className={cn(
               "h-2 w-2 rounded-full",
-              i < current - 1 ? "bg-status-green" : i === current - 1 ? "bg-brand-violet ring-2 ring-brand-violet/30" : "bg-border-muted",
+              i < current - 1
+                ? "bg-status-green"
+                : i === current - 1
+                  ? "bg-brand-violet ring-2 ring-brand-violet/30"
+                  : "bg-border-muted",
             )}
           />
         ))}

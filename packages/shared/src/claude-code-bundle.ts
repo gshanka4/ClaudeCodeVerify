@@ -50,7 +50,9 @@ function renderClaudeMdSection(input: ClaudeCodeBundleInput): string {
   return lines.join("\n");
 }
 
-function mergeClaudeSettingsHook(existing: Record<string, unknown> | undefined): Record<string, unknown> {
+function mergeClaudeSettingsHook(
+  existing: Record<string, unknown> | undefined,
+): Record<string, unknown> {
   const hooks = (existing?.hooks as Record<string, unknown> | undefined) ?? {};
   const post = (hooks.PostToolUse as unknown[] | undefined) ?? [];
   const driftHook = {
@@ -58,7 +60,7 @@ function mergeClaudeSettingsHook(existing: Record<string, unknown> | undefined):
     hooks: [
       {
         type: "command",
-        command: "npx -y @architectai/drift-hook --file \"$CLAUDE_FILE_PATH\"",
+        command: 'node scripts/architectai-drift.mjs --file "$CLAUDE_FILE_PATH"',
       },
     ],
   };
@@ -132,13 +134,63 @@ export function buildClaudeCodeFileMap(
     note: "Copy to .architectai/credentials.json (gitignored) after export.",
   };
 
-  const initScript = [
-    "#!/usr/bin/env sh",
-    "set -e",
-    'ROOT="${1:-.}"',
-    'mkdir -p "$ROOT/.architectai" "$ROOT/.claude/commands" "$ROOT/.claude/skills/architectai-governance"',
-    'echo "Pipe bundle JSON: cat bundle.json | npx architectai init"',
-    'echo "Or: npx architectai init --bundle ./architectai-claude-code.json"',
+  const applyBundleScript = [
+    "#!/usr/bin/env node",
+    "import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';",
+    "import { dirname, join } from 'node:path';",
+    "const bundlePath = process.argv[2];",
+    "if (!bundlePath) {",
+    "  console.error('Usage: node scripts/apply-architectai-bundle.mjs <bundle.json> [repo-root]');",
+    "  process.exit(1);",
+    "}",
+    "const root = process.argv[3] ?? '.';",
+    "const files = JSON.parse(readFileSync(bundlePath, 'utf8'));",
+    "for (const [rel, content] of Object.entries(files)) {",
+    "  if (rel === 'scripts/apply-architectai-bundle.mjs') continue;",
+    "  const dest = join(root, rel);",
+    "  mkdirSync(dirname(dest), { recursive: true });",
+    "  const opts = rel === '.architectai/credentials.json' ? { mode: 0o600 } : undefined;",
+    "  writeFileSync(dest, content, opts);",
+    "}",
+    "console.log('[ArchitectAI] Applied', Object.keys(files).length, 'files to', root);",
+    "console.log('[ArchitectAI] Run: cd', root, '&& claude');",
+  ].join("\n");
+
+  const driftScript = [
+    "#!/usr/bin/env node",
+    "import { readFileSync, existsSync } from 'node:fs';",
+    "import { resolve, relative } from 'node:path';",
+    "const fileIdx = process.argv.indexOf('--file');",
+    "const file = fileIdx >= 0 ? process.argv[fileIdx + 1] : process.env.CLAUDE_FILE_PATH;",
+    "if (!file) process.exit(0);",
+    "const credPath = resolve('.architectai/credentials.json');",
+    "if (!existsSync(credPath)) {",
+    "  console.error('[ArchitectAI] drift: missing .architectai/credentials.json');",
+    "  process.exit(0);",
+    "}",
+    "const creds = JSON.parse(readFileSync(credPath, 'utf8'));",
+    "const abs = resolve(file);",
+    "const rel = relative(process.cwd(), abs).replace(/\\\\/g, '/');",
+    "const content = readFileSync(abs, 'utf8').slice(0, 500000);",
+    "const res = await fetch(`${creds.apiBaseUrl}/api/drift/check`, {",
+    "  method: 'POST',",
+    "  headers: {",
+    "    'Content-Type': 'application/json',",
+    "    Authorization: `Bearer ${creds.workspaceToken}`,",
+    "  },",
+    "  body: JSON.stringify({",
+    "    architectureId: creds.architectureId,",
+    "    filePath: rel,",
+    "    fileContent: content,",
+    "  }),",
+    "});",
+    "const body = await res.json().catch(() => ({}));",
+    "const data = body.data ?? body;",
+    "if (data?.hasDrift) {",
+    "  console.error('[ArchitectAI] Drift detected:', JSON.stringify(data.drifts ?? data));",
+    "  process.exit(1);",
+    "}",
+    "process.exit(0);",
   ].join("\n");
 
   return {
@@ -153,7 +205,12 @@ export function buildClaudeCodeFileMap(
     ".claude/settings.json": JSON.stringify(settings, null, 2),
     ".claude/commands/architectai-review.md": reviewCommand,
     ".claude/skills/architectai-governance/SKILL.md": skill,
-    "scripts/architectai-init.sh": initScript,
+    "scripts/apply-architectai-bundle.mjs": applyBundleScript,
+    "scripts/architectai-drift.mjs": driftScript,
+    ".gitignore": [
+      "# ArchitectAI — keep credentials out of git",
+      ".architectai/credentials.json",
+    ].join("\n"),
   };
 }
 
