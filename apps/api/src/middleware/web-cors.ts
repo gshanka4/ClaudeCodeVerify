@@ -10,7 +10,10 @@ export function webCors(webBaseUrl: string | undefined): RequestHandler {
     res.setHeader("Access-Control-Allow-Origin", webBaseUrl);
     res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, Accept, Last-Event-ID",
+    );
     if (req.method === "OPTIONS") {
       res.status(204).end();
       return;
