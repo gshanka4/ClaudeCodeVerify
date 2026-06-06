@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
   applyClaudeCodeBundle,
@@ -7,12 +6,20 @@ import {
   readBundleFromPath,
 } from "@architectai/runtime-client";
 
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 async function cmdInit(bundlePath: string | undefined, repoRoot: string): Promise<number> {
   let files;
   if (bundlePath && bundlePath !== "-") {
     files = await readBundleFromPath(resolve(bundlePath));
   } else {
-    const raw = await readFile(0, "utf8");
+    const raw = await readStdin();
     if (!raw.trim()) {
       process.stderr.write(
         "Usage: architectai init [--bundle path.json]  (or pipe bundle JSON on stdin)\n",
@@ -51,8 +58,7 @@ export async function runCli(argv: string[]): Promise<number> {
 
   if (cmd === "init") {
     const bundleIdx = argv.indexOf("--bundle");
-    const bundlePath =
-      bundleIdx >= 0 && argv[bundleIdx + 1] ? argv[bundleIdx + 1] : undefined;
+    const bundlePath = bundleIdx >= 0 && argv[bundleIdx + 1] ? argv[bundleIdx + 1] : undefined;
     return cmdInit(bundlePath, repoRoot);
   }
 

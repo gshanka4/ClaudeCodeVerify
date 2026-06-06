@@ -21,10 +21,13 @@ function parseArgs(argv: string[]): DriftHookOptions {
   const opts: DriftHookOptions = { repoRoot: process.cwd() };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--file" && argv[i + 1]) {
-      opts.file = argv[++i];
-    } else if (a === "--repo" && argv[i + 1]) {
-      opts.repoRoot = resolve(argv[++i]);
+    const next = argv[i + 1];
+    if (a === "--file" && next !== undefined) {
+      opts.file = next;
+      i++;
+    } else if (a === "--repo" && next !== undefined) {
+      opts.repoRoot = resolve(next);
+      i++;
     } else if (a === "--soft") {
       opts.soft = true;
     }
@@ -72,9 +75,7 @@ export async function runDriftHook(opts: DriftHookOptions): Promise<number> {
     if ((e as NodeJS.ErrnoException).code === "ENOENT") {
       return 0;
     }
-    process.stderr.write(
-      `[ArchitectAI] drift-hook: cannot read file: ${relPath}\n`,
-    );
+    process.stderr.write(`[ArchitectAI] drift-hook: cannot read file: ${relPath}\n`);
     return opts.soft ? 0 : 1;
   }
 

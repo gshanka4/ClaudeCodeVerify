@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { apiUrl } from "@/lib/api-base";
 import { Button } from "@/components/ui/Button";
-import { apiUrl } from "@/lib/api-base";
 import { DEV_CLERK_STORAGE_KEY } from "@/lib/auth-session";
 
 interface DevSignInModalProps {
@@ -24,7 +23,11 @@ async function provisionDevUser(): Promise<string> {
  * Local-dev sign-in when Clerk keys are absent. One-click provision via the API
  * dev endpoint, or paste a clerkId manually.
  */
-export function DevSignInModal({ open, onClose, onSignedIn }: DevSignInModalProps): JSX.Element | null {
+export function DevSignInModal({
+  open,
+  onClose,
+  onSignedIn,
+}: DevSignInModalProps): JSX.Element | null {
   const [clerkId, setClerkId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

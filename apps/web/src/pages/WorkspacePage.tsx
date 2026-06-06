@@ -6,7 +6,7 @@ import { ExportEducationModal } from "@/components/export/ExportEducationModal";
 import { WorkspaceCoachMarks } from "@/components/journey/WorkspaceCoachMarks";
 import { ClaudeCodeSetupModal } from "@/components/export/ClaudeCodeSetupModal";
 import { IdePickerModal } from "@/components/export/IdePickerModal";
-import { hasSeenExportEducation } from "@/lib/onboarding-flags";
+import { hasSeenDriftWorkspaceEducation, hasSeenExportEducation } from "@/lib/onboarding-flags";
 import { ArchitectureCanvas } from "@/components/workspace/ArchitectureCanvas";
 import { LineageGraphStage } from "@/components/workspace/LineageGraphStage";
 import { LockArchitectureCta } from "@/components/workspace/LockArchitectureCta";
